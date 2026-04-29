@@ -157,7 +157,7 @@ Pipeline overview:
 
 ### Ligand not loading
 
-- Ensure SDF is valid and contains coordinates
+- Ensure SDF is valid and contains coordinates as well as hydrogens!
 
 ### CUDA not detected
 
