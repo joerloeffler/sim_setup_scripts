@@ -26,7 +26,7 @@ This tool converts a receptor (PDB) and optional ligand (SDF) into fully paramet
 
 ---
 
-## 📦 Installation
+## Installation
 
 Recommended: use a micromamba/conda environment.
 
@@ -176,12 +176,11 @@ pip install espaloma
 
 ## ‍ Author
 
-Johannes Löffler  
-MoJoe Developments
+Joe Loeffler, Monica Fernandez-Quintero 
 
 ---
 
-## 📜 License
+## License
 
 MIT License
 
