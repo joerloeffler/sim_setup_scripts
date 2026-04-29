@@ -1,7 +1,11 @@
 import openmm
 import os
+import parmed
 import logging
+
 from openmmtools.utils import get_fastest_platform
+from openmm import app as mm_apps
+
 
 def select_platform(platform_name=None):
     """
@@ -59,3 +63,39 @@ def save_parmed(parmed_sys, fname_trunc, should_save_amber=True, should_save_gmx
     return None
 
 
+
+# %%
+def export_all_files(system, simulation, setup, suffix, modeller, forcefield):
+    """
+    Export solvated coordinates, serialized system, checkpoint, and Amber files.
+    """
+    logging.info(f"Exporting files for {suffix}...")
+    final_positions = simulation.context.getState(getPositions=True).getPositions()
+    # most files follow this naming convention:
+    fname_trunc = f"{setup.sys_name}/{setup.sys_name}"
+    # Save solvated PDB using final positions from context
+    #with open(f"{fname_trunc}_solvated.pdb", "w") as fhandle:
+    mm_apps.PDBFile.writeFile(modeller.topology, final_positions, 
+                                f"{fname_trunc}_solvated.pdb", 
+                                keepIds=True)
+
+    # Save serialized system
+    with open(f"{setup.sys_name}/system.xml", "w") as output:
+        output.write(openmm.XmlSerializer.serialize(system))
+
+    simulation.saveCheckpoint(f"{fname_trunc}_{suffix}.chk")
+
+    # Rebuild for ParmEd export
+    new_system = forcefield.createSystem(
+        modeller.topology,
+        nonbondedMethod=mm_apps.PME,
+        nonbondedCutoff=setup.nb_cutoff,
+        removeCMMotion=False,
+        rigidWater=False,
+        hydrogenMass=setup.hydrogenMass,
+    )
+    parmed_sys = parmed.openmm.load_topology(
+        modeller.getTopology(), new_system, final_positions
+    )
+    save_parmed(parmed_sys, fname_trunc)
+    return None

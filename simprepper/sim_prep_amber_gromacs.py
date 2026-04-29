@@ -2,13 +2,19 @@
 # general imports
 import os
 import sys
-
-import parmed
 import logging
-import numpy as np
+
+# %% Hacks to get rid of annoying warning messages from imported modules...
+
+os.environ["JAX_ENABLE_X64"] = "True" # get rid of annoying JAX warning
+logging.getLogger("pymbar").setLevel(logging.ERROR)
+
+# %% other imports
+
+# import numpy as np
 from typing import NamedTuple
 from simprepper.argument_parsing import parser
-from simprepper.utils import select_platform, get_sysname, prep_filetree, save_parmed
+from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 
 # OpenMM imports
@@ -17,29 +23,11 @@ from openmm import app as mm_apps
 from openmm import unit as mm_units
 
 # %% CONSTANTS
-
 LOG_PATH = 'prot_prep_logs'
 
-
 # %% Pairwise distances...
-
-# cython-optimized pairwise distance function
-# profiled to run in ~50% of the time of pdist
-# much less memory hungry. No storage of all distances.
-try:
-    # add to PYTHONPATH current workdir and script dir
-    #NOTE: PAQ: I don't know why we would do that...?
-    # sys.path.insert(0, os.curdir)
-    # sys.path.insert(0, os.path.dirname(__file__))
-    # PAQ: This is borrowed from https://github.com/JoaoRodrigues/openmm_scripts/blob/master/openmm/amberff/setPeriodicBox.py
-    from _pwdistance import pw_dist
-except ImportError:
-    logging.warning("\nUsing numpy/scipy (slower) pwdist routine for simulation setup.\n")
-    from scipy.spatial.distance import pdist
-
-    def pw_dist(xyz_array):
-        return np.amax(pdist(xyz_array, "euclidean"))
-
+#NOTE: PAQ: pw_dist is not actually used anywhere in this module!
+#from simprepper.pairwise_distance import pw_dist
 
 # %% setting up process
 
@@ -63,6 +51,7 @@ logging.basicConfig(
 
 # TODO: store these setup parameters in an actual class?
 class SimSetup(NamedTuple):
+    sys_name      = sys_name
     nb_cutoff     = 1.0 * mm_units.nanometers    # TODO: Make this an input argument?
     hydrogenMass  = args.Hmass * mm_units.amu  # default =4
     timestep      = 0.004 * mm_units.picoseconds   # picoseconds
@@ -73,42 +62,6 @@ class SimSetup(NamedTuple):
     ph            = 7.4  # TODO: Make this an input argument?
     ligand_ff     = args.ligand_ff # default= "espaloma"  # espaloma, SMIRNOFF, GAFF
 setup = SimSetup()
-
-# %%
-def export_all_files(system, simulation, sys_name, suffix, modeller, forcefield):
-    """
-    Export solvated coordinates, serialized system, checkpoint, and Amber files.
-    """
-    logging.info(f"Exporting files for {suffix}...")
-    final_positions = simulation.context.getState(getPositions=True).getPositions()
-    # most files follow this naming convention:
-    fname_trunc = f"{sys_name}/{sys_name}"
-    # Save solvated PDB using final positions from context
-    #with open(f"{fname_trunc}_solvated.pdb", "w") as fhandle:
-    mm_apps.PDBFile.writeFile(modeller.topology, final_positions, 
-                                f"{fname_trunc}_solvated.pdb", 
-                                keepIds=True)
-
-    # Save serialized system
-    with open(f"{sys_name}/system.xml", "w") as output:
-        output.write(openmm.XmlSerializer.serialize(system))
-
-    simulation.saveCheckpoint(f"{fname_trunc}_{suffix}.chk")
-
-    # Rebuild for ParmEd export
-    new_system = forcefield.createSystem(
-        modeller.topology,
-        nonbondedMethod=mm_apps.PME,
-        nonbondedCutoff=setup.nb_cutoff,
-        removeCMMotion=False,
-        rigidWater=False,
-        hydrogenMass=setup.hydrogenMass,
-    )
-    parmed_sys = parmed.openmm.load_topology(
-        modeller.getTopology(), new_system, final_positions
-    )
-    save_parmed(parmed_sys, fname_trunc)
-    return None
 
 
 # %%
@@ -187,7 +140,7 @@ def main():
     export_all_files(
         system=system,
         simulation=simulation,
-        sys_name=sys_name,
+        setup=setup,  # contains all kind of information, e.g. `sys_name`
         suffix="solvated",
         modeller=modeller,
         forcefield=forcefield,
