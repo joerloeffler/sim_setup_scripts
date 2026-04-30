@@ -52,6 +52,8 @@ logging.basicConfig(
 # TODO: store these setup parameters in an actual class?
 class SimSetup(NamedTuple):
     sys_name      = sys_name
+    rec_fname     = args.rec
+    lig_fname     = args.lig
     nb_cutoff     = 1.0 * mm_units.nanometers    # TODO: Make this an input argument?
     hydrogenMass  = args.Hmass * mm_units.amu  # default =4
     timestep      = 0.004 * mm_units.picoseconds   # picoseconds
@@ -68,14 +70,18 @@ setup = SimSetup()
 def main():
 
     logging.info("Preparing the receptor...")
-    pdb_fixed = prepare_protein(args.rec,
+    pdb_fixed = prepare_protein(setup.rec_fname,
                                 ignore_missing_residues=False,
                                 ignore_terminal_missing_residues=True,
                                 ph=setup.ph,
                                 )
 
-    with open(f"{sys_name}/{rec_basename}_fixed.pdb", "w") as f:
-        mm_apps.PDBFile.writeFile(pdb_fixed.topology, pdb_fixed.positions, f, keepIds=True)
+    
+    mm_apps.PDBFile.writeFile(pdb_fixed.topology, 
+                              pdb_fixed.positions, 
+                              f"{sys_name}/{rec_basename}_fixed.pdb", 
+                              keepIds=True
+                              )
 
     logging.info("Modelling the system...")
 
@@ -87,12 +93,14 @@ def main():
     )
 
     # Make an OpenMM Modeller object with the protein
-    modeller = mm_apps.Modeller(pdb_fixed.topology, pdb_fixed.positions)
+    sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 
+                                    pdb_fixed.positions)
 
     # Optional ligand
-    if args.lig:
-        logging.info(f"Ligand provided: {args.lig}")
-        ligand = prepare_ligand(lig_sdf=args.lig, allow_undefined_stereo=True)
+    if setup.lig_fname:
+        logging.info(f"Ligand provided: {setup.lig_fname}")
+        ligand = prepare_ligand(lig_sdf=setup.lig_fname, 
+                                allow_undefined_stereo=True)
 
         ligand_topology, ligand_positions = parametrize_ligand(ligand,
                                                                forcefield=forcefield,
@@ -100,32 +108,30 @@ def main():
                                                                )
 
         logging.info("Adding ligand to the modeller...")
-        modeller.add(ligand_topology, ligand_positions)
+        sys_modeller.add(ligand_topology, ligand_positions)
     else:
         logging.info("No ligand provided. Running protein-only setup.")
 
     logging.info("Adding solvent and ions...")
-    modeller.addSolvent(
-        forcefield,
-        ionicStrength=setup.ionicStrength,
-        neutralize=True,
-        boxShape=setup.boxShape,
-        padding=setup.padding,
-    )
+    sys_modeller.addSolvent(forcefield,
+                            ionicStrength=setup.ionicStrength,
+                            neutralize=True,
+                            boxShape=setup.boxShape,
+                            padding=setup.padding,
+                            )
 
     logging.info("Selecting MD platform...")
     platform = select_platform("fastest")
 
     logging.info("Setting up the system...")
-    system = forcefield.createSystem(
-        modeller.topology,
-        nonbondedMethod=mm_apps.PME,
-        nonbondedCutoff=setup.nb_cutoff,
-        removeCMMotion=False,
-        rigidWater=True,
-        hydrogenMass=setup.hydrogenMass,
-        constraints=mm_apps.HBonds,
-    )
+    system = forcefield.createSystem(sys_modeller.topology,
+                                     nonbondedMethod=mm_apps.PME,
+                                     nonbondedCutoff=setup.nb_cutoff,
+                                     removeCMMotion=False,
+                                     rigidWater=True,
+                                     hydrogenMass=setup.hydrogenMass,
+                                     constraints=mm_apps.HBonds,
+                                     )
 
     logging.info("Setting up the integrator...")
     integrator = openmm.LangevinMiddleIntegrator(setup.temperature,
@@ -134,17 +140,19 @@ def main():
                                                  )
 
     logging.info("Setting up the simulation...")
-    simulation = mm_apps.Simulation(modeller.topology, system, integrator, platform)
-    simulation.context.setPositions(modeller.positions)
+    simulation = mm_apps.Simulation(sys_modeller.topology, 
+                                    system, 
+                                    integrator, 
+                                    platform)
+    simulation.context.setPositions(sys_modeller.positions)
 
-    export_all_files(
-        system=system,
-        simulation=simulation,
-        setup=setup,  # contains all kind of information, e.g. `sys_name`
-        suffix="solvated",
-        modeller=modeller,
-        forcefield=forcefield,
-    )
+    export_all_files(system=system,
+                     simulation=simulation,
+                     setup=setup,  # contains all kind of information, e.g. `sys_name`
+                     suffix="solvated",
+                     modeller=sys_modeller,
+                     forcefield=forcefield,
+                     )
 
     logging.info("All done!")
 
