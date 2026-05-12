@@ -28,16 +28,28 @@ This tool converts a receptor (PDB) and optional ligand (SDF) into fully paramet
 
 ## Installation
 
-Recommended: use a micromamba/conda environment.
+Recommended: use a micromamba/conda environment.   
+Either you already have an environment with all the openmm tools, or you create a new environment just for this tool
 
 ```bash
-micromamba create -n openmm_env python=3.10
-micromamba activate openmm_env
+micromamba create -n simprepper python=3.10
+micromamba activate simprepper
 
-micromamba install -c conda-forge     openmm     openmmtools     pdbfixer     parmed     rdkit     openff-toolkit     openmmforcefields
+micromamba install -c conda-forge openmm   openmmtools   pdbfixer   openff-toolkit   openmmforcefields   parmed   rdkit     
 ```
 
-For Espaloma:
+Afterwards, actually install `simprepper`:
+```bash
+pip install .
+# or for developers:
+pip install -e .
+```
+Afterwards, to check your installation, try:
+```bash
+simprepper --help
+```
+
+If you want to use Espaloma for ligand parametrization (recommended):
 
 ```bash
 pip install espaloma
@@ -113,7 +125,7 @@ logs/<system_name>.log
 Controlled internally via:
 
 ```python
-ligand_ff = 'espaloma'
+--ligand_ff = 'espaloma'
 ```
 
 Options:
@@ -163,11 +175,13 @@ Pipeline overview:
 
 - Check:
   ```bash
-  nvidia-smi
+  nvidia-smi -L
   ```
+This should list the NVIDIA GPUs in your machine.
 
 ### Espaloma issues
 
+Ensure that you have installed espaloma, if you want to use it as a ligand force field.
 ```bash
 pip install espaloma
 ```
@@ -176,7 +190,7 @@ pip install espaloma
 
 ## ‍ Author
 
-Joe Loeffler, Monica Fernandez-Quintero 
+Joe Loeffler, Monica Fernandez-Quintero, Patrick K. Quoika
 
 ---
 

@@ -1,0 +1,4 @@
+*.so
+*.html
+__pycache__/
+_pwdistance.c
