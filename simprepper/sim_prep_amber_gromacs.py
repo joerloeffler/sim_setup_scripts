@@ -12,10 +12,10 @@ logging.getLogger("pymbar").setLevel(logging.ERROR)
 # %% other imports
 
 # import numpy as np
-from typing import NamedTuple
 from simprepper.argument_parsing import parser
 from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
+from simprepper.sim_setup import SimSetup
 
 # OpenMM imports
 import openmm
@@ -23,7 +23,9 @@ from openmm import app as mm_apps
 from openmm import unit as mm_units
 
 # %% CONSTANTS
+#TODO: make LOG_PATH a parsable argument?
 LOG_PATH = 'prot_prep_logs'
+SHOULD_SAVE_SETUP = True
 
 # %% Pairwise distances...
 #NOTE: PAQ: pw_dist is not actually used anywhere in this module!
@@ -49,24 +51,11 @@ logging.basicConfig(
     force=True  # NOTE: paq: otherwise doesn't print to stdout on all systems...
 )
 
-# TODO: store these setup parameters in an actual class?
-class SimSetup(NamedTuple):
-    sys_name      = sys_name
-    rec_fname     = args.rec
-    lig_fname     = args.lig
-    nb_cutoff     = 1.0 * mm_units.nanometers    # TODO: Make this an input argument?
-    hydrogenMass  = args.Hmass * mm_units.amu  # default =4
-    timestep      = 0.004 * mm_units.picoseconds   # picoseconds
-    temperature   = args.temperature * mm_units.kelvin
-    boxShape      = args.box_shape # cube, dodecahedron
-    padding       = args.box_padding * mm_units.nanometer 
-    ionicStrength = 0.15 * mm_units.molar  # TODO: Make this an input argument?
-    ph            = 7.4  # TODO: Make this an input argument?
-    ligand_ff     = args.ligand_ff # default= "espaloma"  # espaloma, SMIRNOFF, GAFF
-setup = SimSetup()
+# Construct this class-instance from the parsed arguments.
+setup = SimSetup.from_args(sys_name, args)
 
 
-# %%
+# %% define main()
 def main():
 
     logging.info("Preparing the receptor...")
@@ -86,6 +75,7 @@ def main():
     logging.info("Modelling the system...")
 
     # Create an OpenMM ForceField object with AMBER ff14SB and TIP3P
+    # TODO: make forcefield a parsable argument?
     forcefield = mm_apps.ForceField(
         "amber14/protein.ff14SB.xml",
         "amber14/tip3pfb.xml",
@@ -153,11 +143,15 @@ def main():
                      modeller=sys_modeller,
                      forcefield=forcefield,
                      )
+    if SHOULD_SAVE_SETUP:
+        out_fname = os.path.join(LOG_PATH,"simprepper.out.ini")
+        logging.info(f"Writing simulation setup to file {out_fname}.")
+        setup.to_ini(out_fname)
 
     logging.info("All done!")
 
 
-# %%
+# %% actually run main()
 if __name__ == "__main__":
     
     main()
