@@ -69,15 +69,14 @@ def prepare_ligand(lig_sdf, allow_undefined_stereo=True):
 
     rdkit_mol = supplier[0]
 
-    ligand = Molecule.from_rdkit(
-        rdkit_mol,
-        allow_undefined_stereo=allow_undefined_stereo,
-    )
+    ligand = Molecule.from_rdkit(rdkit_mol,
+                                 allow_undefined_stereo=allow_undefined_stereo,
+                                 )
     return ligand
 
 
 # %%
-def parametrize_ligand(ligand, forcefield, lig_ff="espaloma"):
+def parametrize_ligand(ligand, lig_ff="espaloma"):
     """
     Parameterize ligand and register template generator with the forcefield.
     """
@@ -86,30 +85,28 @@ def parametrize_ligand(ligand, forcefield, lig_ff="espaloma"):
     if lig_ff_lower == "espaloma":
         from openmmforcefields.generators import EspalomaTemplateGenerator
 
-        template_generator = EspalomaTemplateGenerator(
-            molecules=ligand, forcefield="espaloma-0.3.1"
-        )
+        ff_template = EspalomaTemplateGenerator(molecules=ligand, 
+                                                forcefield="espaloma-0.3.1"
+                                                )
     elif lig_ff_lower == "smirnoff":
         from openmmforcefields.generators import SMIRNOFFTemplateGenerator
 
-        template_generator = SMIRNOFFTemplateGenerator(
-            molecules=ligand, forcefield="openff-1.2.0"
-        )
+        ff_template = SMIRNOFFTemplateGenerator(molecules=ligand, 
+                                                forcefield="openff-1.2.0"
+                                                )
     elif lig_ff_lower == "gaff":
         from openmmforcefields.generators import GAFFTemplateGenerator
 
-        template_generator = GAFFTemplateGenerator(
-            molecules=ligand, forcefield="gaff-2.11"
-        )
+        ff_template = GAFFTemplateGenerator(molecules=ligand, 
+                                            forcefield="gaff-2.11"
+                                            )
     else:
         raise ValueError(
             "Ligand forcefield must be one of: espaloma, SMIRNOFF, or GAFF"
         )
 
-    forcefield.registerTemplateGenerator(template_generator.generator)
-
     ligand_off_topology = offTopology.from_molecules(molecules=[ligand])
     ligand_omm_topology = ligand_off_topology.to_openmm()
     ligand_positions = off_to_openmm(ligand.conformers[0])
 
-    return ligand_omm_topology, ligand_positions
+    return ligand_omm_topology, ligand_positions, ff_template.generator

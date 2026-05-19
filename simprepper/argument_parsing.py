@@ -12,6 +12,10 @@ parser.add_argument("--debug",
                     help="Print debug messenges (mostly for developers)",
                     action="store_true", default=False)
 
+parser.add_argument("--verbose",
+                    help="Print some additional info during runtime",
+                    action="store_true", default=False)
+
 parser.add_argument("-l", "--lig",
                     help="Optional SDF file of the ligand",
                     required=False, default=None,

@@ -3,6 +3,7 @@
 import os
 import sys
 import logging
+import warnings
 
 # %% Hacks to get rid of annoying warning messages from imported modules...
 
@@ -13,7 +14,7 @@ logging.getLogger("pymbar").setLevel(logging.ERROR)
 
 # import numpy as np
 from simprepper.argument_parsing import parser
-from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files
+from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
 
@@ -89,15 +90,23 @@ def main():
     # Optional ligand
     if setup.lig_fname:
         logging.info(f"Ligand provided: {setup.lig_fname}")
+
+        has_TERS = sanity_check_pdb_for_TERs(setup.rec_fname, verbose=args.verbose)
+        if not has_TERS:
+            warnings.warn("\n".join(["Did not find any >TER< entry in your pdb-file.",
+                                     "This *may* cause problems (depending on how you cap your protein chain).",
+                                     "We recommend to add >TER< entries between all chains, and in particular between receptor and ligand"]),
+                                     UserWarning)
+
         ligand = prepare_ligand(lig_sdf=setup.lig_fname, 
                                 allow_undefined_stereo=True)
 
-        ligand_topology, ligand_positions = parametrize_ligand(ligand,
-                                                               forcefield=forcefield,
-                                                               lig_ff=setup.ligand_ff,
-                                                               )
+        ligand_topology, ligand_positions, ligand_template_gen = parametrize_ligand(ligand,
+                                                                                    lig_ff=setup.ligand_ff
+                                                                                    )
 
         logging.info("Adding ligand to the modeller...")
+        forcefield.registerTemplateGenerator(ligand_template_gen)
         sys_modeller.add(ligand_topology, ligand_positions)
     else:
         logging.info("No ligand provided. Running protein-only setup.")
@@ -143,8 +152,9 @@ def main():
                      modeller=sys_modeller,
                      forcefield=forcefield,
                      )
+    
     if SHOULD_SAVE_SETUP:
-        out_fname = os.path.join(LOG_PATH,"simprepper.out.ini")
+        out_fname = os.path.join(LOG_PATH, "simprepper.out.ini")
         logging.info(f"Writing simulation setup to file {out_fname}.")
         setup.to_ini(out_fname)
 

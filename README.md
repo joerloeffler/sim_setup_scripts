@@ -13,16 +13,16 @@ This tool converts a receptor (PDB) and optional ligand (SDF) into fully paramet
   - Non-standard residues replaced
 -  Optional ligand support (SDF input)
 -  Multiple ligand force fields:
-  - Espaloma (default)
-  - SMIRNOFF (OpenFF)
-  - GAFF
+   - Espaloma (default)
+   - SMIRNOFF (OpenFF)
+   - GAFF
 -  Automatic solvation and ion placement
 -  Automatic platform selection (CUDA/OpenCL/CPU)
 -  Multi-format export:
-  - OpenMM (`system.xml`, checkpoint)
-  - AMBER (`.prmtop`, `.rst7`)
-  - GROMACS (`.gro`, `.top`)
-  - PDB (solvated system)
+   - OpenMM (`system.xml`, checkpoint)
+   - AMBER (`.prmtop`, `.rst7`)
+   - GROMACS (`.gro`, `.top`)
+   - PDB (solvated system)
 
 ---
 
@@ -31,14 +31,24 @@ This tool converts a receptor (PDB) and optional ligand (SDF) into fully paramet
 Recommended: use a micromamba/conda environment.   
 Either you already have an environment with all the openmm tools, or you create a new environment just for this tool
 
+### Step 1 -- install dependencies
 ```bash
 micromamba create -n simprepper python=3.10
 micromamba activate simprepper
 
+# mandatory
 micromamba install -c conda-forge openmm   openmmtools   pdbfixer   openff-toolkit   openmmforcefields   parmed   rdkit     
+# optional
+micromamba install -c conda-forge espaloma
+```
+or alternatively:
+
+```bash
+pip install espaloma
 ```
 
-Afterwards, actually install `simprepper`:
+### Step 2 -- install `simprepper`
+After installing the dependencies, actually install `simprepper`:
 ```bash
 pip install .
 # or for developers:
@@ -49,12 +59,6 @@ Afterwards, to check your installation, try:
 simprepper --help
 ```
 
-If you want to use Espaloma for ligand parametrization (recommended):
-
-```bash
-pip install espaloma
-```
-
 ---
 
 ## Usage
@@ -62,20 +66,26 @@ pip install espaloma
 ### Protein only (apo system)
 
 ```bash
-python openMM_prepare.py -r receptor.pdb
+simprepper -r receptor.pdb
 ```
 
 ### Protein + ligand
 
 ```bash
-python openMM_prepare.py -r receptor.pdb -l ligand.sdf
+simprepper -r receptor.pdb -l ligand.sdf
 ```
 
 ### Optional logging level
 
 ```bash
-python openMM_prepare.py -r receptor.pdb -l ligand.sdf -L debug
+simprepper -r receptor.pdb -l ligand.sdf -L debug
 ```
+
+## Testing
+
+For developers, and to check, if the installation worked out, check the subdirectory [examples](examples/), 
+which currently contains two different use-cases.
+
 
 ---
 

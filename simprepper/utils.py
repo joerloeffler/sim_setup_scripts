@@ -29,14 +29,21 @@ def select_platform(platform_name=None):
     return platform
 
 
+def get_basename(filename):
+    """strip away trailing foldernames and filename extension
+    """
+    return os.path.splitext(os.path.basename(filename))[0]    
+
+
 def get_sysname(args):
     # Use ligand name as system name if present, otherwise receptor basename
-    if args.lig:
-        sys_name = os.path.splitext(os.path.basename(args.lig))[0]
-    else:
-        sys_name = os.path.splitext(os.path.basename(args.rec))[0]
+    rec_basename = get_basename(args.rec)
+    sys_name = rec_basename
 
-    rec_basename = os.path.splitext(os.path.basename(args.rec))[0]
+    if args.lig:
+        lig_basename = get_basename(args.lig)
+        sys_name = f"{rec_basename}-{lig_basename}"
+
     return sys_name, rec_basename
 
 
@@ -99,3 +106,39 @@ def export_all_files(system, simulation, setup, suffix, modeller, forcefield):
     )
     save_parmed(parmed_sys, fname_trunc)
     return None
+
+
+def sanity_check_pdb_for_TERs(pdb_filename, verbose=False):
+    """
+    Checks for the presence of TER records in a PDB file 
+    and prints the context of where they appear.
+    """
+    ter_count = 0
+    last_atom_line = ""
+    if verbose:
+        print(f"Scanning '{pdb_filename}' for TER records...\n")
+    
+    with open(pdb_filename, 'r') as f:
+        for line_num, line in enumerate(f, 1):
+            # Keep track of the last ATOM/HETATM line seen before a TER
+            if line.startswith(("ATOM  ", "HETATM")):
+                last_atom_line = line.strip()
+                
+            elif line.startswith("TER"):
+                ter_count += 1
+                if verbose:
+                    print(f" Found TER record at line {line_num}!")
+                if last_atom_line:
+                    # Parse out the residue info from the preceding atom line for context
+                    res_name = last_atom_line[17:20].strip()
+                    chain_id = last_atom_line[21].strip()
+                    res_num = last_atom_line[22:26].strip()
+                    if verbose:
+                        print(f"   -> Placed after: {res_name} (Chain {chain_id}, Res #{res_num})")
+                else:
+                    if verbose:
+                        print("   -> Placed at the very beginning of the file.")
+    if verbose:            
+        print("-" * 50)
+        
+    return ter_count > 0
