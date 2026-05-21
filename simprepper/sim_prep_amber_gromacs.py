@@ -107,7 +107,10 @@ def main():
 
         logging.info("Adding ligand to the modeller...")
         forcefield.registerTemplateGenerator(ligand_template_gen)
-        sys_modeller.add(ligand_topology, ligand_positions)
+        
+        # if you use the following line: the ligand is added a second time.
+        # I will keep this line here, because in alternative preparation pipelines, this is a very useful line...
+        # sys_modeller.add(ligand_topology, ligand_positions)
     else:
         logging.info("No ligand provided. Running protein-only setup.")
 

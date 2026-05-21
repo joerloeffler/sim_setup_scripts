@@ -37,13 +37,18 @@ def prepare_protein(
     fixer = pdbfixer.PDBFixer(str(pdb_file))
     # fixer.removeHeterogens()  # co-crystallized ligands are unknown to PDBFixer
     fixer.findMissingResidues()
-
+    #BUG: PAQ: I think if the terminal residue of a chain is a HETATM, this can cause problems..
+    # (not entirely sure, if this is really a problem. Did not have time for thorough testing...)
+    # This situation may happen relatively often, because even in files from the PDB, ligands aren't 
+    # always assigned their own chain...
     if ignore_terminal_missing_residues:
         chains = list(fixer.topology.chains())
         keys = list(fixer.missingResidues.keys())
         for key in keys:
             chain = chains[key[0]]
-            if key[1] == 0 or key[1] == len(list(chain.residues())):
+            is_first_in_chain = ( key[1] == 0 )
+            is_last_in_chain = ( key[1] == len(list(chain.residues())) )
+            if is_first_in_chain or is_last_in_chain:
                 del fixer.missingResidues[key]
 
     if ignore_missing_residues:
