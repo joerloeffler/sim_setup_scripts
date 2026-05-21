@@ -2,6 +2,7 @@ import openmm
 import os
 import parmed
 import logging
+from pathlib import Path
 
 from openmmtools.utils import get_fastest_platform
 from openmm import app as mm_apps
@@ -142,3 +143,18 @@ def sanity_check_pdb_for_TERs(pdb_filename, verbose=False):
         print("-" * 50)
         
     return ter_count > 0
+
+
+def find_forcefields():
+    """
+    Lists available OpenMM forcefields by scanning the data directory of the OpenMM package.
+    """
+    data_dir = Path(mm_apps.__file__).parent / "data"
+    # Get only XML files
+    xml_files = sorted(data_dir.rglob("*.xml"))
+
+    print("\nAvailable OpenMM forcefields:\n")
+
+    for xml in xml_files:
+        rel = xml.relative_to(data_dir)
+        print(rel)
