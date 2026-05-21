@@ -161,11 +161,11 @@ def print_tree(path: Path, prefix: str = ""):
     entries = sorted(entries, key=lambda p: (not p.is_dir(), p.name.lower()))
 
     for i, entry in enumerate(entries):
-        connector = "└── " if i == len(entries) - 1 else "├── "
+        connector = "`-- " if i == len(entries) - 1 else "|-- "
         print(prefix + connector + entry.name)
 
         if entry.is_dir():
-            extension = "    " if i == len(entries) - 1 else "│   "
+            extension = "    " if i == len(entries) - 1 else "|   "
             print_tree(entry, prefix + extension)
 
 
