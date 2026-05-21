@@ -6,6 +6,7 @@ from pathlib import Path
 
 from openmmtools.utils import get_fastest_platform
 from openmm import app as mm_apps
+from openmm.app import forcefield
 
 
 def select_platform(platform_name=None):
@@ -145,16 +146,39 @@ def sanity_check_pdb_for_TERs(pdb_filename, verbose=False):
     return ter_count > 0
 
 
+def print_tree(path: Path, prefix: str = ""):
+    """
+    Recursively print a tree view of a directory.
+    """
+    if not path.exists():
+        return
+
+    # keep only XML files + directories that may contain XMLs
+    entries = [
+        p for p in path.iterdir()
+        if p.is_dir() or p.suffix == ".xml"
+    ]
+    entries = sorted(entries, key=lambda p: (not p.is_dir(), p.name.lower()))
+
+    for i, entry in enumerate(entries):
+        connector = "└── " if i == len(entries) - 1 else "├── "
+        print(prefix + connector + entry.name)
+
+        if entry.is_dir():
+            extension = "    " if i == len(entries) - 1 else "│   "
+            print_tree(entry, prefix + extension)
+
+
 def find_forcefields():
     """
-    Lists available OpenMM forcefields by scanning the data directory of the OpenMM package.
+    Lists available OpenMM forcefields using the _getDataDirectories() method.
     """
-    data_dir = Path(mm_apps.__file__).parent / "data"
-    # Get only XML files
-    xml_files = sorted(data_dir.rglob("*.xml"))
+    data_dirs = forcefield._getDataDirectories()
 
     print("\nAvailable OpenMM forcefields:\n")
 
-    for xml in xml_files:
-        rel = xml.relative_to(data_dir)
-        print(rel)
+    for d in data_dirs:
+        d = Path(d)
+        print(f"{d.name}/")
+        print_tree(d)
+        print()
