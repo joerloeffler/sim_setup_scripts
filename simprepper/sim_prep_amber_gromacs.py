@@ -83,6 +83,8 @@ def main():
         setup.lipid_ff,
     )
 
+    logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, and {setup.lipid_ff} forcefields.")
+
     # Make an OpenMM Modeller object with the protein
     sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 
                                     pdb_fixed.positions)
