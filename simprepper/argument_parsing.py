@@ -32,6 +32,21 @@ parser.add_argument("-L", "--log-level",
                     )
 # %% various
 
+parser.add_argument("--protein_ff",
+                    help="Force field for protein (to list all available force fields in OpenMM, see simprepper-forcefields)",
+                    default="amber14/protein.ff14SB.xml"
+                    )
+
+parser.add_argument("--water_ff",
+                    help="Force field for water (to list all available force fields in OpenMM, see simprepper-forcefields)",
+                    default="amber14/tip3pfb.xml"
+                    )
+
+parser.add_argument("--lipid_ff",
+                    help="Force field for lipids (to list all available force fields in OpenMM, see simprepper-forcefields)",
+                    default="amber14/lipid17.xml"
+                    )
+
 parser.add_argument("--ligand_ff",
                     help="Choose force field for ligand",
                     choices=["espaloma", "SMIRNOFF", "GAFF"],
