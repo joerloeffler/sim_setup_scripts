@@ -79,11 +79,11 @@ def main():
     forcefield = mm_apps.ForceField(
         setup.protein_ff,
         setup.water_ff,
-        # "amber/tip3p_HFE_multivalent.xml", # NOTE: Not sure what to do about this yet. Currently, parser accepts only one water_ff.
+        setup.ion_ff,
         setup.lipid_ff,
     )
 
-    logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, and {setup.lipid_ff} forcefields.")
+    logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
 
     # Make an OpenMM Modeller object with the protein
     sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 

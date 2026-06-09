@@ -42,6 +42,11 @@ parser.add_argument("--water_ff",
                     default="amber14/tip3pfb.xml"
                     )
 
+parser.add_argument("--ion_ff",
+                    help="Force field for additional ions (to list all available force fields in OpenMM, see simprepper-forcefields)",
+                    default="amber/tip3p_HFE_multivalent.xml"
+                    )
+
 parser.add_argument("--lipid_ff",
                     help="Force field for lipids (to list all available force fields in OpenMM, see simprepper-forcefields)",
                     default="amber14/lipid17.xml"

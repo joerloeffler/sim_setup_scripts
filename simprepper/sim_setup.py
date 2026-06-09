@@ -29,6 +29,7 @@ class SimSetup:
     ligand_ff     : str         = "espaloma" # default = "espaloma"  # espaloma, SMIRNOFF, GAFF
     protein_ff    : str         = "amber14/protein.ff14SB.xml" # default = "amber14/protein.ff14SB.xml" # TODO: still need to make use of it
     water_ff      : str         = "amber14/tip3pfb.xml" # default = "amber14/tip3pfb.xml" # TODO: still need to make use of it
+    ion_ff        : str         = "amber/tip3p_HFE_multivalent.xml" # default = "amber/tip3p_HFE_multivalent.xml" # TODO: still need to make use of it
     lipid_ff      : str         = "amber14/lipid17.xml" # default = "amber14/lipid17.xml" # TODO: still need to make use of it
 
     @classmethod
@@ -52,6 +53,7 @@ class SimSetup:
                 ligand_ff     = args.ligand_ff, # default = "espaloma"  # espaloma, SMIRNOFF, GAFF
                 protein_ff    = args.protein_ff, # default = "amber14/protein.ff14SB.xml"
                 water_ff      = args.water_ff, # default = "amber14/tip3pfb.xml"
+                ion_ff        = args.ion_ff, # default = "amber/tip3p_HFE_multivalent.xml"
                 lipid_ff      = args.lipid_ff, # default = "amber14/lipid17.xml"
         )
         #TODO: the following properties are currently fixed, because the argument parser doesn't know them
