@@ -146,6 +146,25 @@ def sanity_check_pdb_for_TERs(pdb_filename, verbose=False):
     return ter_count > 0
 
 
+def sanity_check_ligand_extension(lig_filename):
+    """
+    Checks if the ligand file has a supported extension.
+    """
+    # List of currently supported ligand file extensions
+    supported_extensions = [".sdf"]
+
+    lig_path = Path(lig_filename)
+
+    # Check if the ligand file exisits
+    if not lig_path.exists():
+        raise FileNotFoundError(f"Ligand file '{lig_path}' does not exist.")
+    
+    # Get the file extension and check if it's in the list of supported extensions
+    lig_suffix = lig_path.suffix.lower()
+    if lig_suffix not in supported_extensions:
+        raise ValueError(f"Unsupported ligand file extension '{lig_suffix}'. Supported extensions are: {', '.join(supported_extensions)}")
+    
+
 def print_tree(path: Path, prefix: str = ""):
     """
     Recursively print a tree view of a directory.

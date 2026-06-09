@@ -14,7 +14,7 @@ logging.getLogger("pymbar").setLevel(logging.ERROR)
 
 # import numpy as np
 from simprepper.argument_parsing import parser
-from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs
+from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
 
@@ -91,6 +91,9 @@ def main():
 
     # Optional ligand
     if setup.lig_fname:
+        # Check if a given ligand is in the correct format
+        sanity_check_ligand_extension(setup.lig_fname)
+
         logging.info(f"Ligand provided: {setup.lig_fname}")
 
         has_TERS = sanity_check_pdb_for_TERs(setup.rec_fname, verbose=args.verbose)
