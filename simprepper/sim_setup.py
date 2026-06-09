@@ -27,10 +27,10 @@ class SimSetup:
     ionicStrength : mm_quantity = 0.15  * mm_units.molar  # TODO: Make this an input argument?
     ph            : float       = 7.4   # TODO: Make this an input argument?
     ligand_ff     : str         = "espaloma" # default = "espaloma"  # espaloma, SMIRNOFF, GAFF
-    protein_ff    : str         = "amber14/protein.ff14SB.xml" # default = "amber14/protein.ff14SB.xml" # TODO: still need to make use of it
-    water_ff      : str         = "amber14/tip3pfb.xml" # default = "amber14/tip3pfb.xml" # TODO: still need to make use of it
-    ion_ff        : str         = "amber/tip3p_HFE_multivalent.xml" # default = "amber/tip3p_HFE_multivalent.xml" # TODO: still need to make use of it
-    lipid_ff      : str         = "amber14/lipid17.xml" # default = "amber14/lipid17.xml" # TODO: still need to make use of it
+    protein_ff    : str         = "amber14/protein.ff14SB.xml" # default = "amber14/protein.ff14SB.xml"
+    water_ff      : str         = "amber14/tip3pfb.xml" # default = "amber14/tip3pfb.xml"
+    ion_ff        : str         = "amber/tip3p_HFE_multivalent.xml" # default = "amber/tip3p_HFE_multivalent.xml"
+    lipid_ff      : str         = "amber14/lipid17.xml" # default = "amber14/lipid17.xml"
 
     @classmethod
     def from_args(cls,
