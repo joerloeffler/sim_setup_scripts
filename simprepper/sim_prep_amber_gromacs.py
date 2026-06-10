@@ -75,13 +75,15 @@ def main():
 
     logging.info("Modelling the system...")
 
-    # Create an OpenMM ForceField object with AMBER ff14SB and TIP3P
-    # TODO: make forcefield a parsable argument?
+    # Create an OpenMM ForceField object with parsed forcefields 
     forcefield = mm_apps.ForceField(
-        "amber14/protein.ff14SB.xml",
-        "amber14/tip3pfb.xml",
-        "amber/tip3p_HFE_multivalent.xml",
+        setup.protein_ff,
+        setup.water_ff,
+        setup.ion_ff,
+        setup.lipid_ff,
     )
+
+    logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
 
     # Make an OpenMM Modeller object with the protein
     sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 
