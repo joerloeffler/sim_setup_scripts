@@ -74,8 +74,10 @@ class SimSetup:
         key_length = get_longest_key(props.keys())
 
         with open(out_fname, "w") as f:
-            for key,val in props.items():
-                f.write(f"{key:<{key_length}} = {val}\n")
+            for key, value in props.items():
+                if isinstance(value, mm_quantity):
+                    value = value.value_in_unit(value.unit)
+                f.write(f"{key:<{key_length}} = {value}\n")
         return None
 
 
