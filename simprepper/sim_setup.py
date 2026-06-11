@@ -4,6 +4,17 @@ from dataclasses import dataclass, asdict
 import argparse
 
 
+# Units for different properties
+QUANTITY_FIELDS = {
+    "nb_cutoff": (mm_units.nanometer, "nm"),
+    "hydrogenMass": (mm_units.amu, "amu"),
+    "timestep": (mm_units.picoseconds, "ps"),
+    "temperature": (mm_units.kelvin, "K"),
+    "padding": (mm_units.nanometer, "nm"),
+    "ionicStrength": (mm_units.molar, "M"),
+}
+
+
 @dataclass
 class SimSetup:
     """For developers: 
@@ -61,50 +72,56 @@ class SimSetup:
         # timestep
         # ionicStrength
         # ph
+        # NOTE: not sure if we keep this method since we have the option to construct this class from an ini 
+        # file, which is more flexible and easier to maintain when we have many parameters.
 
         return cls(**props)
     
     @classmethod
     def from_ini(cls, ini_fname):
+        """
+        This is a constructor function, to generate an instance of SimSetup() from an ini file.
+        """
         raw = {}
         with open(ini_fname) as f:
             for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
+                # Remove inline comments
+                line = line.split("#", 1)[0].strip()
+                if not line:
                     continue
                 key, value = [x.strip() for x in line.split("=", 1)]
                 raw[key] = value
 
-        props = dict(
-            sys_name      = raw["sys_name"],
-            rec_fname     = raw["rec_fname"],
-            lig_fname     = None if raw["lig_fname"] == "None" else raw["lig_fname"],
-            nb_cutoff     = float(raw["nb_cutoff"]) * mm_units.nanometer,
-            hydrogenMass  = float(raw["hydrogenMass"]) * mm_units.amu,
-            timestep      = float(raw["timestep"]) * mm_units.picoseconds,
-            temperature   = float(raw["temperature"]) * mm_units.kelvin,
-            boxShape      = raw["boxShape"],
-            padding       = float(raw["padding"]) * mm_units.nanometer,
-            ionicStrength = float(raw["ionicStrength"]) * mm_units.molar,
-            ph            = float(raw["ph"]),
-            ligand_ff     = raw["ligand_ff"],
-            protein_ff    = raw["protein_ff"],
-            water_ff      = raw["water_ff"],
-            ion_ff        = raw["ion_ff"],
-            lipid_ff      = raw["lipid_ff"],
-        )
+        props = {}
+        for key, value in raw.items():
+            if key in QUANTITY_FIELDS:
+                unit_obj, _ = QUANTITY_FIELDS[key]
+                props[key] = float(value) * unit_obj
+            elif key == "ph":
+                props[key] = float(value)
+            elif key == "lig_fname":
+                props[key] = None if value == "None" else value
+            else:
+                props[key] = value
 
         return cls(**props)
     
     def to_ini(self, out_fname):
+        """
+        Write the simulation setup to an ini file. This can be used to reload the same setup later, or to use it as a template for other setups.
+        """
         props = asdict(self)
         key_length = get_longest_key(props.keys())
 
         with open(out_fname, "w") as f:
             for key, value in props.items():
-                if isinstance(value, mm_quantity):
-                    value = value.value_in_unit(value.unit)
-                f.write(f"{key:<{key_length}} = {value}\n")
+                if key in QUANTITY_FIELDS:
+                    # Add the unit of the quantity as an inline comment
+                    unit_obj, unit_str = QUANTITY_FIELDS[key]
+                    value = value.value_in_unit(unit_obj)
+                    f.write(f"{key:<{key_length}} = {value} # {unit_str}\n")
+                else:
+                    f.write(f"{key:<{key_length}} = {value}\n")
         return None
 
 
