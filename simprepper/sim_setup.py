@@ -66,8 +66,35 @@ class SimSetup:
     
     @classmethod
     def from_ini(cls, ini_fname):
-        print("Reading the simulation config from an ini-file is currently not implemented, yet.")
-        pass
+        raw = {}
+        with open(ini_fname) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                key, value = [x.strip() for x in line.split("=", 1)]
+                raw[key] = value
+
+        props = dict(
+            sys_name      = raw["sys_name"],
+            rec_fname     = raw["rec_fname"],
+            lig_fname     = None if raw["lig_fname"] == "None" else raw["lig_fname"],
+            nb_cutoff     = float(raw["nb_cutoff"]) * mm_units.nanometer,
+            hydrogenMass  = float(raw["hydrogenMass"]) * mm_units.amu,
+            timestep      = float(raw["timestep"]) * mm_units.picoseconds,
+            temperature   = float(raw["temperature"]) * mm_units.kelvin,
+            boxShape      = raw["boxShape"],
+            padding       = float(raw["padding"]) * mm_units.nanometer,
+            ionicStrength = float(raw["ionicStrength"]) * mm_units.molar,
+            ph            = float(raw["ph"]),
+            ligand_ff     = raw["ligand_ff"],
+            protein_ff    = raw["protein_ff"],
+            water_ff      = raw["water_ff"],
+            ion_ff        = raw["ion_ff"],
+            lipid_ff      = raw["lipid_ff"],
+        )
+
+        return cls(**props)
     
     def to_ini(self, out_fname):
         props = asdict(self)

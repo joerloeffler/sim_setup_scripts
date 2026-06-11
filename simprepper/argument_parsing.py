@@ -22,12 +22,16 @@ parser.add_argument("-l", "--lig",
                     )
 parser.add_argument("-r", "--rec",
                     help="PDB file of the receptor",
-                    required=True,
+                    required=False,
                     )
 parser.add_argument("-L", "--log-level",
                     help="Choose the logging level to show",
                     choices=["debug", "info", "warning", "error", "critical"],
                     default="info",
+                    required=False,
+                    )
+parser.add_argument("-i", "--ini",
+                    help="ini-file with simulation parameters",
                     required=False,
                     )
 # %% various

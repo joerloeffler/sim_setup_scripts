@@ -14,7 +14,7 @@ logging.getLogger("pymbar").setLevel(logging.ERROR)
 
 # import numpy as np
 from simprepper.argument_parsing import parser
-from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension
+from simprepper.utils import select_platform, get_sysname, get_basename, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
 
@@ -35,7 +35,16 @@ SHOULD_SAVE_SETUP = True
 # %% setting up process
 
 args = parser.parse_args()
-sys_name, rec_basename = get_sysname(args)
+
+# Construct this class-instance from ini file or from command line arguments
+if args.ini is not None:
+    setup = SimSetup.from_ini(args.ini)
+    sys_name = setup.sys_name
+    rec_basename = get_basename(setup.rec_fname)
+else:
+    sys_name, rec_basename = get_sysname(args)
+    setup = SimSetup.from_args(sys_name, args)
+
 prep_filetree(sys_name, log_path=LOG_PATH)
 if args.debug:
     print(args)
@@ -51,9 +60,6 @@ logging.basicConfig(
     ],
     force=True  # NOTE: paq: otherwise doesn't print to stdout on all systems...
 )
-
-# Construct this class-instance from the parsed arguments.
-setup = SimSetup.from_args(sys_name, args)
 
 
 # %% define main()
