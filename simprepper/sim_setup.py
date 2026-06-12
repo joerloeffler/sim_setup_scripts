@@ -1,9 +1,10 @@
 from openmm import unit as mm_units
 from openmm.unit.quantity import Quantity as mm_quantity
 from dataclasses import dataclass, asdict
+from configparser import ConfigParser
 import argparse
 
-
+# %% global constants
 # Units for different properties
 QUANTITY_FIELDS = {
     "nb_cutoff": (mm_units.nanometer, "nm"),
@@ -14,7 +15,30 @@ QUANTITY_FIELDS = {
     "ionicStrength": (mm_units.molar, "M"),
 }
 
+# Sections for the config file
+FIELD_SECTIONS = {
+    "sys_name": "system",
+    "rec_fname": "system",
+    "lig_fname": "system",
 
+    "boxShape": "simulation box",
+    "padding": "simulation box",
+
+    "nb_cutoff": "simulation",
+    "hydrogenMass": "simulation",
+    "timestep": "simulation",
+    "temperature": "simulation",
+    "ionicStrength": "simulation",
+    "ph": "simulation",
+
+    "ligand_ff": "forcefields",
+    "protein_ff": "forcefields",
+    "water_ff": "forcefields",
+    "ion_ff": "forcefields",
+    "lipid_ff": "forcefields",
+}
+
+# %% SimSetup class
 @dataclass
 class SimSetup:
     """For developers: 
@@ -82,16 +106,12 @@ class SimSetup:
         """
         This is a constructor function, to generate an instance of SimSetup() from an ini file.
         """
-        raw = {}
-        with open(ini_fname) as f:
-            for line in f:
-                # Remove inline comments
-                line = line.split("#", 1)[0].strip()
-                if not line:
-                    continue
-                key, value = [x.strip() for x in line.split("=", 1)]
-                raw[key] = value
+        config = ConfigParser(inline_comment_prefixes=("#",))
+        config.read(ini_fname)
 
+        raw = {}
+        for key, section in FIELD_SECTIONS.items():
+            raw[key] = config[section][key]
         props = {}
         for key, value in raw.items():
             if key in QUANTITY_FIELDS:
@@ -111,20 +131,25 @@ class SimSetup:
         Write the simulation setup to an ini file. This can be used to reload the same setup later, or to use it as a template for other setups.
         """
         props = asdict(self)
-        key_length = get_longest_key(props.keys())
+        config = ConfigParser()
+
+        for key, value in props.items():
+            section = FIELD_SECTIONS[key]
+            if section not in config:
+                config[section] = {}
+            if key in QUANTITY_FIELDS:
+                unit_obj, unit_str = QUANTITY_FIELDS[key]
+                value = value.value_in_unit(unit_obj)
+                config[section][key] = f"{value}  # {unit_str}"
+            else:
+                config[section][key] = str(value)
 
         with open(out_fname, "w") as f:
-            for key, value in props.items():
-                if key in QUANTITY_FIELDS:
-                    # Add the unit of the quantity as an inline comment
-                    unit_obj, unit_str = QUANTITY_FIELDS[key]
-                    value = value.value_in_unit(unit_obj)
-                    f.write(f"{key:<{key_length}} = {value} # {unit_str}\n")
-                else:
-                    f.write(f"{key:<{key_length}} = {value}\n")
+            config.write(f)
         return None
 
 
+# NOTE: this function is not actually used anywhere in the code anymore
 def get_longest_key(keys):
     longest_string = max([len(key) for key in keys])
     return longest_string+1
