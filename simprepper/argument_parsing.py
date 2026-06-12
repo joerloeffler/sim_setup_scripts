@@ -59,7 +59,7 @@ parser.add_argument("--lipid_ff",
 parser.add_argument("--ligand_ff",
                     help="Choose force field for ligand",
                     choices=["espaloma", "SMIRNOFF", "GAFF"],
-                    default="espaloma",
+                    default="GAFF",
                     required=False
                     )
 parser.add_argument('--temperature', 
