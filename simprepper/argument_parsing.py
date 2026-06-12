@@ -22,7 +22,7 @@ parser.add_argument("-l", "--lig",
                     )
 parser.add_argument("-r", "--rec",
                     help="PDB file of the receptor",
-                    required=False,
+                    required=True,
                     )
 parser.add_argument("-L", "--log-level",
                     help="Choose the logging level to show",

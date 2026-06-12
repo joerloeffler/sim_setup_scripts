@@ -17,10 +17,6 @@ QUANTITY_FIELDS = {
 
 # Sections for the config file
 FIELD_SECTIONS = {
-    "sys_name": "system",
-    "rec_fname": "system",
-    "lig_fname": "system",
-
     "boxShape": "simulation box",
     "padding": "simulation box",
 
@@ -85,42 +81,42 @@ class SimSetup:
                 temperature   = args.temperature * mm_units.kelvin,
                 boxShape      = args.box_shape, # cube, dodecahedron
                 padding       = args.box_padding * mm_units.nanometer, 
-                ligand_ff     = args.ligand_ff, # default = "espaloma"  # espaloma, SMIRNOFF, GAFF
+                ligand_ff     = args.ligand_ff, # default = "GAFF"  # espaloma, SMIRNOFF, GAFF
                 protein_ff    = args.protein_ff, # default = "amber14/protein.ff14SB.xml"
                 water_ff      = args.water_ff, # default = "amber14/tip3pfb.xml"
                 ion_ff        = args.ion_ff, # default = "amber/tip3p_HFE_multivalent.xml"
                 lipid_ff      = args.lipid_ff, # default = "amber14/lipid17.xml"
         )
-        #TODO: the following properties are currently fixed, because the argument parser doesn't know them
-        # nb_cutoff
-        # timestep
-        # ionicStrength
-        # ph
-        # NOTE: not sure if we keep this method since we have the option to construct this class from an ini 
-        # file, which is more flexible and easier to maintain when we have many parameters.
+        # NOTE: This method is still functional but it is a legacy feature, so it will not be futher developed.
+        # Using the .ini file is the recommended way to go, as it allows for more flexibility and a wider range of options.
 
         return cls(**props)
     
     @classmethod
-    def from_ini(cls, ini_fname):
+    def from_ini(cls, sys_name, args):
         """
         This is a constructor function, to generate an instance of SimSetup() from an ini file.
         """
         config = ConfigParser(inline_comment_prefixes=("#",))
-        config.read(ini_fname)
+        config.read(args.ini)
 
         raw = {}
         for key, section in FIELD_SECTIONS.items():
             raw[key] = config[section][key]
-        props = {}
+
+        # Set the receptor and ligand file names from the command line arguments
+        props = dict(
+            sys_name = sys_name,
+            rec_fname = args.rec,
+            lig_fname = args.lig,
+        )
+        # Add the other properties from the ini file
         for key, value in raw.items():
             if key in QUANTITY_FIELDS:
                 unit_obj, _ = QUANTITY_FIELDS[key]
                 props[key] = float(value) * unit_obj
             elif key == "ph":
                 props[key] = float(value)
-            elif key == "lig_fname":
-                props[key] = None if value == "None" else value
             else:
                 props[key] = value
 
@@ -134,6 +130,8 @@ class SimSetup:
         config = ConfigParser()
 
         for key, value in props.items():
+            if key not in FIELD_SECTIONS:
+                continue
             section = FIELD_SECTIONS[key]
             if section not in config:
                 config[section] = {}

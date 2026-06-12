@@ -35,14 +35,23 @@ SHOULD_SAVE_SETUP = True
 # %% setting up process
 
 args = parser.parse_args()
+sys_name, rec_basename = get_sysname(args)
 
 # Construct this class-instance from ini file or from command line arguments
+setup = None
 if args.ini is not None:
-    setup = SimSetup.from_ini(args.ini)
-    sys_name = setup.sys_name
-    rec_basename = get_basename(setup.rec_fname)
+    warnings.warn(
+        "Config .ini file provided: command-line arguments for simulation parameters will be ignored.",
+        UserWarning,
+        stacklevel=2
+    )
+    setup = SimSetup.from_ini(sys_name, args)
 else:
-    sys_name, rec_basename = get_sysname(args)
+    warnings.warn(
+        "Argument parsing is a legacy feature. For more flexibility and a wider range of options, consider using a config .ini file.",
+        UserWarning,
+        stacklevel=2
+    )
     setup = SimSetup.from_args(sys_name, args)
 
 prep_filetree(sys_name, log_path=LOG_PATH)
