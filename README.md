@@ -13,9 +13,9 @@ This tool converts a receptor (PDB) and optional ligand (SDF) into fully paramet
   - Non-standard residues replaced
 -  Optional ligand support (SDF input)
 -  Multiple ligand force fields:
-   - Espaloma (default)
+   - Espaloma
    - SMIRNOFF (OpenFF)
-   - GAFF
+   - GAFF (default)
 -  Automatic solvation and ion placement
 -  Automatic platform selection (CUDA/OpenCL/CPU)
 -  Multi-format export:
@@ -81,6 +81,47 @@ simprepper -r receptor.pdb -l ligand.sdf
 simprepper -r receptor.pdb -l ligand.sdf -L debug
 ```
 
+### Specifying simulation settings
+
+Simulation settings can be provided through a configuration file:
+
+```bash
+simprepper -r receptor.pdb -i config.ini
+```
+
+When a config file is supplied, the simulation parameters are read from this file rather than from the command line.
+
+To generate an example configuration file containing the default simulation settings, run:
+
+```bash
+simprepper-to-ini -o default_config.ini
+```
+
+This will create a template that can be modified and reused for future simulations.
+
+The configuration file is organized into sections:
+```bash
+nb_cutoff = 1.0  # nm
+hydrogenmass = 4  # amu
+timestep = 0.004  # ps
+temperature = 300.0  # K
+ionicstrength = 0.15  # M
+ph = 7.4
+
+[simulation box]
+boxshape = cube
+padding = 3.0  # nm
+
+[forcefields]
+ligand_ff = GAFF
+protein_ff = amber14/protein.ff14SB.xml
+water_ff = amber14/tip3pfb.xml
+ion_ff = amber/tip3p_HFE_multivalent.xml
+lipid_ff = amber14/lipid17.xml
+```
+
+Numerical values are stored in a machine-readable format. Unit annotations are included as comments for readability and are ignored during parsing.
+
 ## Testing
 
 For developers, and to check, if the installation worked out, check the subdirectory [examples](examples/), 
@@ -116,21 +157,34 @@ logs/<system_name>.log
 
 ##  Default Simulation Settings
 
-| Parameter          | Value              |
-|------------------|-------------------|
-| Force field       | AMBER ff14SB      |
-| Water model       | TIP3P-FB          |
-| Box shape         | Cube              |
-| Padding           | 2 nm              |
-| Ionic strength    | 0.15 M            |
-| Cutoff            | 1.0 nm            |
-| Constraints       | HBonds            |
-| Hydrogen mass     | 4 amu (HMR)       |
-| Timestep          | 4 fs              |
+| Parameter             | Value                 |
+|-----------------------|-----------------------|
+| Protein Force field   | AMBER ff14SB          |
+| Water model           | TIP3P-FB              |
+| Ion Parameters        | HFE multivalent       |
+| Lipid Force Field     | AMBER Lipid17         |
+| Box shape             | Cube                  |
+| Padding               | 3 nm                  |
+| Ionic strength        | 0.15 M                |
+| pH                    | 7.4                   |
+| Cutoff                | 1.0 nm                |
+| Constraints           | HBonds                |
+| Hydrogen mass         | 4 amu (HMR)           |
+| Timestep              | 4 fs (0.004 ps)       |
+| Temperature           | 300 K                 |
 
 ---
 
-## Ligand Force Fields
+## Force Fields
+
+###  Available force fields
+
+The list of available force fields can be printed by running:
+```bash
+simprepper-forcefields
+```
+
+### Ligand Force Fields
 
 Controlled internally via:
 
@@ -200,7 +254,7 @@ pip install espaloma
 
 ## ‍ Author
 
-Joe Loeffler, Monica Fernandez-Quintero, Patrick K. Quoika
+Joe Loeffler, Monica Fernandez-Quintero, Patrick K. Quoika, Julia Bandera
 
 ---
 
