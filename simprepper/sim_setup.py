@@ -55,8 +55,8 @@ class SimSetup:
     temperature   : mm_quantity = 300.0 * mm_units.kelvin
     boxShape      : str         = "cube" # cube, dodecahedron
     padding       : mm_quantity = 3.0   * mm_units.nanometer 
-    ionicStrength : mm_quantity = 0.15  * mm_units.molar  # TODO: Make this an input argument?
-    ph            : float       = 7.4   # TODO: Make this an input argument?
+    ionicStrength : mm_quantity = 0.15  * mm_units.molar
+    ph            : float       = 7.4
     ligand_ff     : str         = "GAFF" # default = "GAFF"  # espaloma, SMIRNOFF, GAFF
     protein_ff    : str         = "amber14/protein.ff14SB.xml" # default = "amber14/protein.ff14SB.xml"
     water_ff      : str         = "amber14/tip3pfb.xml" # default = "amber14/tip3pfb.xml"
