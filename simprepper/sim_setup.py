@@ -100,21 +100,31 @@ class SimSetup:
         config = ConfigParser(inline_comment_prefixes=("#",))
         config.read(args.ini)
 
+        defaults = cls()  # default fallback values from dataclass
+
         raw = {}
         for key, section in FIELD_SECTIONS.items():
-            raw[key] = config[section][key]
+            section_data = config[section] if section in config else {}
+            value = section_data.get(key, None)
+            # fallback to default
+            if value is None:
+                value = getattr(defaults, key)
+            raw[key] = value
 
         # Set the receptor and ligand file names from the command line arguments
         props = dict(
-            sys_name = sys_name,
-            rec_fname = args.rec,
-            lig_fname = args.lig,
+            sys_name=sys_name,
+            rec_fname=args.rec,
+            lig_fname=args.lig,
         )
         # Add the other properties from the ini file
         for key, value in raw.items():
             if key in QUANTITY_FIELDS:
                 unit_obj, _ = QUANTITY_FIELDS[key]
-                props[key] = float(value) * unit_obj
+                if isinstance(value, mm_units.Quantity):
+                    props[key] = value
+                else:
+                    props[key] = float(value) * unit_obj
             elif key == "ph":
                 props[key] = float(value)
             else:
