@@ -40,6 +40,13 @@ sys_name, rec_basename = get_sysname(args)
 # Construct this class-instance from ini file or from command line arguments
 setup = None
 if args.ini is not None:
+    # Check if the ini file exists
+    if not os.path.isfile(args.ini):
+        raise FileNotFoundError(
+            f"Provided config .ini file not found: {args.ini}\n"
+            "Use simprepper-example-config to generate a template configuration."
+        )
+    # Print a warning if the ini file is provided, to inform users that command-line arguments will be ignored
     warnings.warn(
         "Config .ini file provided: command-line arguments for simulation parameters will be ignored.",
         UserWarning,
