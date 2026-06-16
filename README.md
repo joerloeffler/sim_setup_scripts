@@ -94,7 +94,7 @@ When a config file is supplied, the simulation parameters are read from this fil
 To generate an example configuration file containing the default simulation settings, run:
 
 ```bash
-simprepper-to-ini -o default_config.ini
+simprepper-example-config -o default_config.ini
 ```
 
 This will create a template that can be modified and reused for future simulations.
