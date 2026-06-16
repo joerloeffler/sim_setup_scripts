@@ -3,6 +3,7 @@ from openmm.unit.quantity import Quantity as mm_quantity
 from dataclasses import dataclass, asdict
 from configparser import ConfigParser
 import argparse
+import warnings
 
 # %% global constants
 # Units for different properties
@@ -99,6 +100,17 @@ class SimSetup:
         """
         config = ConfigParser(inline_comment_prefixes=("#",))
         config.read(args.ini)
+
+        # Print a warning if there are unknown sections in the ini file, to help users identify typos or misplaced options
+        expected_sections = set(FIELD_SECTIONS.values())
+        actual_sections = set(config.sections())
+        unknown_sections = actual_sections - expected_sections
+        if unknown_sections:
+            warnings.warn(
+                f"Unknown section(s) ignored: {', '.join(unknown_sections)}",
+                UserWarning,
+                stacklevel=2
+            )
 
         defaults = cls()  # default fallback values from dataclass
 
