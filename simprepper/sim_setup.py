@@ -4,6 +4,7 @@ from dataclasses import dataclass, asdict
 from configparser import ConfigParser
 import argparse
 import warnings
+import os
 
 # %% global constants
 # Units for different properties
@@ -101,16 +102,8 @@ class SimSetup:
         config = ConfigParser(inline_comment_prefixes=("#",))
         config.read(args.ini)
 
-        # Print a warning if there are unknown sections in the ini file, to help users identify typos or misplaced options
-        expected_sections = set(FIELD_SECTIONS.values())
-        actual_sections = set(config.sections())
-        unknown_sections = actual_sections - expected_sections
-        if unknown_sections:
-            warnings.warn(
-                f"Unknown section(s) ignored: {', '.join(unknown_sections)}",
-                UserWarning,
-                stacklevel=2
-            )
+        # Check if the ini file exists and if it is valid
+        sanity_check_ini_file(args.ini, FIELD_SECTIONS)
 
         defaults = cls()  # default fallback values from dataclass
 
@@ -173,3 +166,28 @@ class SimSetup:
 def get_longest_key(keys):
     longest_string = max([len(key) for key in keys])
     return longest_string+1
+
+
+def sanity_check_ini_file(ini_filename, field_sections):
+    """
+    Checks if the ini file exists and is valid. Raises a FileNotFoundError if the file does not 
+    exist, and a UserWarning if there are unknown sections in the ini file.
+    """
+    if not os.path.isfile(ini_filename):
+        raise FileNotFoundError(
+            f"Provided config .ini file not found: {ini_filename}\n"
+            "Use simprepper-example-config to generate a template configuration."
+        )
+    else:
+        # Print a warning if there are unknown sections in the ini file, to help users identify typos or misplaced options
+        config = ConfigParser(inline_comment_prefixes=("#",))
+        config.read(ini_filename)
+        expected_sections = set(field_sections.values())
+        actual_sections = set(config.sections())
+        unknown_sections = actual_sections - expected_sections
+        if unknown_sections:
+            warnings.warn(
+                f"Unknown section(s) ignored: {', '.join(unknown_sections)}",
+                UserWarning,
+                stacklevel=2
+            )
