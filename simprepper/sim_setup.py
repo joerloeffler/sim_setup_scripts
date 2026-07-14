@@ -1,39 +1,39 @@
 from openmm import unit as mm_units
 from openmm.unit.quantity import Quantity as mm_quantity
-from dataclasses import dataclass, asdict
+from openff.units.openmm import openmm_unit_to_string
+from dataclasses import dataclass, field, asdict
+from collections import namedtuple
 from configparser import ConfigParser
 import argparse
 import warnings
 import os
 
 # %% global constants
-# Units for different properties
-QUANTITY_FIELDS = {
-    "nb_cutoff": (mm_units.nanometer, "nm"),
-    "hydrogenMass": (mm_units.amu, "amu"),
-    "timestep": (mm_units.picoseconds, "ps"),
-    "temperature": (mm_units.kelvin, "K"),
-    "padding": (mm_units.nanometer, "nm"),
-    "ionicStrength": (mm_units.molar, "M"),
-}
-
 # Sections for the config file
-FIELD_SECTIONS = {
-    "boxShape": "simulation box",
-    "padding": "simulation box",
-
-    "nb_cutoff": "simulation",
-    "hydrogenMass": "simulation",
-    "timestep": "simulation",
-    "temperature": "simulation",
-    "ionicStrength": "simulation",
-    "ph": "simulation",
-
-    "ligand_ff": "forcefields",
-    "protein_ff": "forcefields",
-    "water_ff": "forcefields",
-    "ion_ff": "forcefields",
-    "lipid_ff": "forcefields",
+# NOTE: At the moment, when adding a new parameter, you need to add it to the CONFIG_SECTIONS dictionary, 
+# and also add it to the SimSetup dataclass. Ideally, we would like to have a single source of truth for 
+# the parameters, but this can be solved later.
+SimSetupField = namedtuple("SimSetupField", ["name", "unit", "default", "data_type"])
+CONFIG_SECTIONS = {
+    "simulation box": [
+        SimSetupField("boxShape", None, "cube", str),
+        SimSetupField("padding", mm_units.nanometer, 3.0, float),
+    ],
+    "simulation": [
+        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
+        SimSetupField("hydrogenMass", mm_units.amu, 4.0, float),
+        SimSetupField("timestep", mm_units.picoseconds, 0.004, float),
+        SimSetupField("temperature", mm_units.kelvin, 300.0, float),
+        SimSetupField("ionicStrength", mm_units.molar, 0.15, float),
+        SimSetupField("ph", None, 7.4, float),
+    ],
+    "forcefields": [
+        SimSetupField("ligand_ff", None, "GAFF", str),
+        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", str),
+        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", str),
+        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", str),
+        SimSetupField("lipid_ff", None, "amber14/lipid17.xml", str),
+    ]
 }
 
 # %% SimSetup class
@@ -51,19 +51,19 @@ class SimSetup:
     sys_name      : str         = "DEFAULT_SYS_NAME"
     rec_fname     : str         = "DEFAULT_REC_NAME"
     lig_fname     : str | None  = None
-    nb_cutoff     : mm_quantity = 1.0   * mm_units.nanometers
-    hydrogenMass  : mm_quantity = 4     * mm_units.amu  # default =4
-    timestep      : mm_quantity = 0.004 * mm_units.picoseconds   # picoseconds
-    temperature   : mm_quantity = 300.0 * mm_units.kelvin
-    boxShape      : str         = "cube" # cube, dodecahedron
-    padding       : mm_quantity = 3.0   * mm_units.nanometer 
-    ionicStrength : mm_quantity = 0.15  * mm_units.molar
-    ph            : float       = 7.4
-    ligand_ff     : str         = "GAFF" # default = "GAFF"  # espaloma, SMIRNOFF, GAFF
-    protein_ff    : str         = "amber14/protein.ff14SB.xml" # default = "amber14/protein.ff14SB.xml"
-    water_ff      : str         = "amber14/tip3pfb.xml" # default = "amber14/tip3pfb.xml"
-    ion_ff        : str         = "amber/tip3p_HFE_multivalent.xml" # default = "amber/tip3p_HFE_multivalent.xml"
-    lipid_ff      : str         = "amber14/lipid17.xml" # default = "amber14/lipid17.xml"
+    nb_cutoff     : mm_quantity = field(default_factory=lambda: get_field_default("nb_cutoff", CONFIG_SECTIONS))
+    hydrogenMass  : mm_quantity = field(default_factory=lambda: get_field_default("hydrogenMass", CONFIG_SECTIONS))
+    timestep      : mm_quantity = field(default_factory=lambda: get_field_default("timestep", CONFIG_SECTIONS))
+    temperature   : mm_quantity = field(default_factory=lambda: get_field_default("temperature", CONFIG_SECTIONS))
+    boxShape      : str         = field(default_factory=lambda: get_field_default("boxShape", CONFIG_SECTIONS))
+    padding       : mm_quantity = field(default_factory=lambda: get_field_default("padding", CONFIG_SECTIONS))
+    ionicStrength : mm_quantity = field(default_factory=lambda: get_field_default("ionicStrength", CONFIG_SECTIONS))
+    ph            : float       = field(default_factory=lambda: get_field_default("ph", CONFIG_SECTIONS))
+    ligand_ff     : str         = field(default_factory=lambda: get_field_default("ligand_ff", CONFIG_SECTIONS))
+    protein_ff    : str         = field(default_factory=lambda: get_field_default("protein_ff", CONFIG_SECTIONS))
+    water_ff      : str         = field(default_factory=lambda: get_field_default("water_ff", CONFIG_SECTIONS))
+    ion_ff        : str         = field(default_factory=lambda: get_field_default("ion_ff", CONFIG_SECTIONS))
+    lipid_ff      : str         = field(default_factory=lambda: get_field_default("lipid_ff", CONFIG_SECTIONS))
 
     @classmethod
     def from_args(cls,
@@ -99,22 +99,13 @@ class SimSetup:
         """
         This is a constructor function, to generate an instance of SimSetup() from an ini file.
         """
+        # Check if the ini file exists and if it is valid
+        sanity_check_ini_file(args.ini, CONFIG_SECTIONS)
+
         config = ConfigParser(inline_comment_prefixes=("#",))
         config.read(args.ini)
 
-        # Check if the ini file exists and if it is valid
-        sanity_check_ini_file(args.ini, FIELD_SECTIONS)
-
         defaults = cls()  # default fallback values from dataclass
-
-        raw = {}
-        for key, section in FIELD_SECTIONS.items():
-            section_data = config[section] if section in config else {}
-            value = section_data.get(key, None)
-            # fallback to default
-            if value is None:
-                value = getattr(defaults, key)
-            raw[key] = value
 
         # Set the receptor and ligand file names from the command line arguments
         props = dict(
@@ -122,18 +113,26 @@ class SimSetup:
             rec_fname=args.rec,
             lig_fname=args.lig,
         )
-        # Add the other properties from the ini file
-        for key, value in raw.items():
-            if key in QUANTITY_FIELDS:
-                unit_obj, _ = QUANTITY_FIELDS[key]
-                if isinstance(value, mm_units.Quantity):
-                    props[key] = value
-                else:
-                    props[key] = float(value) * unit_obj
-            elif key == "ph":
-                props[key] = float(value)
-            else:
-                props[key] = value
+
+        for section, fields in CONFIG_SECTIONS.items():
+            section_data = config[section] if section in config else {}
+
+            for field in fields:
+                value = section_data.get(field.name, None)
+
+                # Fall back to the dataclass default if the field is missing
+                if value is None:
+                    props[field.name] = getattr(defaults, field.name)
+                    continue
+
+                # Convert the value to the appropriate type
+                value = field.data_type(value)
+
+                # Attach the OpenMM unit if present
+                if field.unit is not None:
+                    value *= field.unit
+
+                props[field.name] = value
 
         return cls(**props)
     
@@ -145,14 +144,17 @@ class SimSetup:
         config = ConfigParser()
 
         for key, value in props.items():
-            if key not in FIELD_SECTIONS:
+            # retrieve the SimSetupField object for the current key
+            field = get_field(key, CONFIG_SECTIONS)
+            if field is None:
                 continue
-            section = FIELD_SECTIONS[key]
+            section = get_section_of_field(key, CONFIG_SECTIONS) # get the name of the section
             if section not in config:
                 config[section] = {}
-            if key in QUANTITY_FIELDS:
-                unit_obj, unit_str = QUANTITY_FIELDS[key]
-                value = value.value_in_unit(unit_obj)
+            # add a comment with the unit string if the field has a unit
+            if field.unit is not None:
+                value = value.value_in_unit(field.unit)
+                unit_str = openmm_unit_to_string(field.unit)
                 config[section][key] = f"{value}  # {unit_str}"
             else:
                 config[section][key] = str(value)
@@ -182,7 +184,7 @@ def sanity_check_ini_file(ini_filename, field_sections):
         # Print a warning if there are unknown sections in the ini file, to help users identify typos or misplaced options
         config = ConfigParser(inline_comment_prefixes=("#",))
         config.read(ini_filename)
-        expected_sections = set(field_sections.values())
+        expected_sections = set(field_sections.keys())
         actual_sections = set(config.sections())
         unknown_sections = actual_sections - expected_sections
         if unknown_sections:
@@ -191,3 +193,36 @@ def sanity_check_ini_file(ini_filename, field_sections):
                 UserWarning,
                 stacklevel=2
             )
+
+def get_section_of_field(field_name, field_sections):
+    """
+    Returns the section name of a given field.
+    """
+    for section, fields in field_sections.items():
+        for field in fields:
+            if field.name == field_name:
+                return section
+    return None  # if the field doesn't belong to any section
+
+
+def get_field(field_name, field_sections):
+    """
+    Returns the SimSetupField object for a given field name.
+    """
+    for fields in field_sections.values():
+        for field in fields:
+            if field.name == field_name:
+                return field
+    return None
+
+def get_field_default(field_name, field_sections):
+    """
+    Get the default value of a field and add OpenMM unit if present.
+    """
+    for fields in field_sections.values():
+        for field in fields:
+            if field.name == field_name:
+                if field.unit is not None:
+                    return field.default * field.unit
+                return field.default
+    raise KeyError(f"Field '{field_name}' not found.")
