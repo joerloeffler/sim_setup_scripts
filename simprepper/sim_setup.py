@@ -107,7 +107,7 @@ class SimSetup:
         config.read(args.ini)
 
         # Check if the ini file is valid
-        sanity_check_ini_file_is_valid(config, CONFIG_SECTIONS)
+        sanity_check_ini_file_content(config, CONFIG_SECTIONS)
 
         defaults = cls()  # default fallback values from dataclass
 
@@ -184,7 +184,7 @@ def sanity_check_ini_file_if_exists(ini_filename, field_sections):
             "Use simprepper-example-config to generate a template configuration."
         )
 
-def sanity_check_ini_file_is_valid(config_content, field_sections):
+def sanity_check_ini_file_content(config_content, field_sections):
     """
     Checks if the ini file is valid. Raises a ValueError if there are unknown 
     sections or fields in the ini file.
