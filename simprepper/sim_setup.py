@@ -186,19 +186,37 @@ def sanity_check_ini_file_if_exists(ini_filename, field_sections):
 
 def sanity_check_ini_file_is_valid(config_content, field_sections):
     """
-    Checks if the ini file is valid. Raises a UserWarning if there are unknown 
-    sections in the ini file.
+    Checks if the ini file is valid. Raises a ValueError if there are unknown 
+    sections or fields in the ini file.
     """
-    # Print a warning if there are unknown sections in the ini file, to help users identify typos or misplaced options
+    # Raise an error if there are unknown sections in the ini file, to help users identify typos or misplaced options
     expected_sections = set(field_sections.keys())
     actual_sections = set(config_content.sections())
     unknown_sections = actual_sections - expected_sections
     if unknown_sections:
-        warnings.warn(
-            f"Unknown section(s) ignored: {', '.join(unknown_sections)}",
-            UserWarning,
-            stacklevel=2
+        raise ValueError(
+            f"Unknown section(s) in config file: {', '.join(sorted(unknown_sections))}\n"
+            f"Expected sections: {', '.join(sorted(expected_sections))}"
         )
+    
+    # Check for unknown fields in each section
+    actual_fields = {section: set(config_content[section].keys()) for section in actual_sections}
+    unknown_fields = {}
+    for section in actual_sections:
+        expected_fields = {field.name.lower(): field.name for field in field_sections.get(section, [])}
+        unknown = {field for field in actual_fields[section] if field.lower() not in expected_fields}
+        if unknown:
+            unknown_fields[section] = {
+                "unknown": unknown,
+                "expected": sorted(expected_fields.values())
+            }
+    # Raise an error
+    if unknown_fields:
+        msg = ["Unknown field(s) found in config file:"]
+        for section, info in unknown_fields.items():
+            msg.append(f"Found in [{section}]: {', '.join(sorted(info['unknown']))}")
+            msg.append(f"  Expected: {', '.join(info['expected'])}")
+        raise ValueError("\n".join(msg))
 
 
 def get_section_of_field(field_name, field_sections):
