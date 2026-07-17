@@ -101,16 +101,17 @@ This will create a template that can be modified and reused for future simulatio
 
 The configuration file is organized into sections:
 ```bash
-nb_cutoff = 1.0  # nm
-hydrogenmass = 4  # amu
-timestep = 0.004  # ps
-temperature = 300.0  # K
-ionicstrength = 0.15  # M
+[simulation]
+nb_cutoff = 1.0  # nanometer
+hydrogen_mass = 4.0  # g/mol
+timestep = 0.004  # picosecond
+temperature = 300.0  # kelvin
+ionic_strength = 0.15  # molar
 ph = 7.4
 
 [simulation box]
-boxshape = cube
-padding = 3.0  # nm
+box_shape = cube
+padding = 3.0  # nanometer
 
 [forcefields]
 ligand_ff = GAFF

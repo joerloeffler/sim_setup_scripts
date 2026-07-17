@@ -137,9 +137,9 @@ def main():
 
     logging.info("Adding solvent and ions...")
     sys_modeller.addSolvent(forcefield,
-                            ionicStrength=setup.ionicStrength,
+                            ionicStrength=setup.ionic_strength,
                             neutralize=True,
-                            boxShape=setup.boxShape,
+                            boxShape=setup.box_shape,
                             padding=setup.padding,
                             )
 
@@ -152,7 +152,7 @@ def main():
                                      nonbondedCutoff=setup.nb_cutoff,
                                      removeCMMotion=False,
                                      rigidWater=True,
-                                     hydrogenMass=setup.hydrogenMass,
+                                     hydrogenMass=setup.hydrogen_mass,
                                      constraints=mm_apps.HBonds,
                                      )
 
