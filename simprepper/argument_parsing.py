@@ -34,8 +34,21 @@ parser.add_argument("-i", "--ini",
                     help="ini-file with simulation parameters",
                     required=False,
                     )
-# %% various
+# %% different output
 
+parser.add_argument("--gmx_output",
+                    help="Flag: Generate files for gromacs",
+                    type=bool, default=True, destination="should_export_gmx")
+
+parser.add_argument("--amber_output",
+                    help="Flag: Generate files for amber",
+                    type=bool, default=True, destination="should_export_amber")
+
+parser.add_argument("--openmm_output",
+                    help="Flag: Generate files for openmm",
+                    type=bool, default=True, destination="should_export_openmm")
+
+# %% forcefields
 parser.add_argument("--protein_ff",
                     help="Force field for protein (to list all available force fields in OpenMM, see simprepper-forcefields)",
                     default="amber14/protein.ff14SB.xml"
@@ -62,6 +75,9 @@ parser.add_argument("--ligand_ff",
                     default="GAFF",
                     required=False
                     )
+
+# %% various
+
 parser.add_argument('--temperature', 
                     help='Simulation temperature', 
                     type=float, default=300.0, required=False)

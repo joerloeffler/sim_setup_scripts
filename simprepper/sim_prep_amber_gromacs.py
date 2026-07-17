@@ -14,7 +14,7 @@ logging.getLogger("pymbar").setLevel(logging.ERROR)
 
 # import numpy as np
 from simprepper.argument_parsing import parser
-from simprepper.utils import select_platform, get_sysname, get_basename, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension
+from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
 
@@ -26,7 +26,8 @@ from openmm import unit as mm_units
 # %% CONSTANTS
 #TODO: make LOG_PATH a parsable argument?
 LOG_PATH = 'prot_prep_logs'
-SHOULD_SAVE_SETUP = True
+#TODO: Will we ever not want to save the setup?
+SHOULD_SAVE_CONFIG = True
 
 # %% Pairwise distances...
 #NOTE: PAQ: pw_dist is not actually used anywhere in this module!
@@ -55,7 +56,13 @@ else:
     )
     setup = SimSetup.from_args(sys_name, args)
 
-prep_filetree(sys_name, log_path=LOG_PATH)
+export_flags = {"gmx": args.should_export_gmx,
+                "amber": args.should_export_amber,
+                "openmm": args.should_export_openmm
+                }
+
+prep_filetree(subdirs=(sys_name, LOG_PATH)
+              )
 if args.debug:
     print(args)
     print("Log-level: {}".format(args.log_level.upper()))
@@ -98,7 +105,7 @@ def main():
         setup.ion_ff,
         setup.lipid_ff,
     )
-
+    
     logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
 
     # Make an OpenMM Modeller object with the protein
@@ -175,9 +182,10 @@ def main():
                      suffix="solvated",
                      modeller=sys_modeller,
                      forcefield=forcefield,
+                     export_flags=export_flags,
                      )
     
-    if SHOULD_SAVE_SETUP:
+    if SHOULD_SAVE_CONFIG:
         out_fname = os.path.join(LOG_PATH, "simprepper.out.ini")
         logging.info(f"Writing simulation setup to file {out_fname}.")
         setup.to_ini(out_fname)

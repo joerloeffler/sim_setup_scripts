@@ -5,8 +5,10 @@ from dataclasses import dataclass, field, asdict
 from collections import namedtuple
 from configparser import ConfigParser
 import argparse
-import warnings
+# import warnings  # not used here
 import os
+
+os.environ["JAX_ENABLE_X64"] = "True" # get rid of annoying JAX warning
 
 # %% global constants
 # Sections for the config file
@@ -227,6 +229,7 @@ def get_section_of_field(field_name, field_sections):
         for field in fields:
             if field.name == field_name:
                 return section
+    #QUESTION: Paq: Should the following ever happen?
     return None  # if the field doesn't belong to any section
 
 
@@ -239,6 +242,7 @@ def get_field(field_name, field_sections):
             if field.name == field_name:
                 return field
     return None
+
 
 def get_field_default(field_name, field_sections):
     """

@@ -51,64 +51,79 @@ def get_sysname(args):
     return sys_name, rec_basename
 
 
-def prep_filetree(sys_name, log_path):
-    os.makedirs(sys_name, exist_ok=True)
-    os.makedirs(log_path, exist_ok=True)
+def prep_filetree(subdirs):
+    # sys_name,logpath = sdirs
+    for sdir in subdirs:
+        os.makedirs(sdir, exist_ok=True)
     return None
 
 
-def save_parmed(parmed_sys, fname_trunc, should_save_amber=True, should_save_gmx=True):
-    # save amber parmameters
+def save_parmed(modeller, setup, forcefield_of_this_system, final_positions, 
+                fname_trunc, export_flags={}):
+    # just a reminder:
     # fname_trunc = f"{sys_name}/{sys_name}"
-    if should_save_amber:
+
+    # Rebuild for ParmEd export
+    new_system = forcefield_of_this_system.createSystem(
+                                modeller.topology,
+                                nonbondedMethod=mm_apps.PME,
+                                nonbondedCutoff=setup.nb_cutoff,
+                                removeCMMotion=False,
+                                rigidWater=False,
+                                hydrogenMass=setup.hydrogen_mass,
+                                )
+    parmed_sys = parmed.openmm.load_topology(modeller.getTopology(), 
+                                             new_system, 
+                                             final_positions
+                                             )
+
+    # save amber parmameters
+    if export_flags.get("should_export_amber", True):  # if nothing is passsed on, export the files
+        #TODO: add amber subfolder here
         parmed_sys.save(f"{fname_trunc}_solvated.prmtop", overwrite=True)
         parmed_sys.save(f"{fname_trunc}_solvated.rst7", overwrite=True,
                         format="rst7",
                         )
     # save gromacs parameters
-    if should_save_gmx:
+    if export_flags.get("should_export_gmx", True):
+        #TODO: add gmx subfolder here
         parmed_sys.save(f"{fname_trunc}_solvated.gro", overwrite=True,
-                        format='gro',)
+                        format='gro'
+                        )
         parmed_sys.save(f"{fname_trunc}_solvated.top", overwrite=True,
-                        format='gromacs',)
+                        format='gromacs'
+                        )
     return None
 
 
-
 # %%
-def export_all_files(system, simulation, setup, suffix, modeller, forcefield):
+def export_all_files(system, simulation, setup, suffix, modeller, forcefield_of_this_system, 
+                     export_flags={}):
     """
     Export solvated coordinates, serialized system, checkpoint, and Amber files.
     """
     logging.info(f"Exporting files for {suffix}...")
-    final_positions = simulation.context.getState(getPositions=True).getPositions()
     # most files follow this naming convention:
     fname_trunc = f"{setup.sys_name}/{setup.sys_name}"
+
+    # These positions will be used in all output
+    final_positions = simulation.context.getState(getPositions=True).getPositions()
+
     # Save solvated PDB using final positions from context
-    #with open(f"{fname_trunc}_solvated.pdb", "w") as fhandle:
     mm_apps.PDBFile.writeFile(modeller.topology, final_positions, 
                                 f"{fname_trunc}_solvated.pdb", 
                                 keepIds=True)
 
-    # Save serialized system
-    with open(f"{setup.sys_name}/system.xml", "w") as output:
-        output.write(openmm.XmlSerializer.serialize(system))
+    if export_flags.get("should_export_openmm", True):
+        #TODO: add openmm subfolder here
+        # Save serialized system
+        with open(f"{setup.sys_name}/system.xml", "w") as output:
+            output.write(openmm.XmlSerializer.serialize(system))
 
-    simulation.saveCheckpoint(f"{fname_trunc}_{suffix}.chk")
+        simulation.saveCheckpoint(f"{fname_trunc}_{suffix}.chk")
 
-    # Rebuild for ParmEd export
-    new_system = forcefield.createSystem(
-        modeller.topology,
-        nonbondedMethod=mm_apps.PME,
-        nonbondedCutoff=setup.nb_cutoff,
-        removeCMMotion=False,
-        rigidWater=False,
-        hydrogenMass=setup.hydrogen_mass,
-    )
-    parmed_sys = parmed.openmm.load_topology(
-        modeller.getTopology(), new_system, final_positions
-    )
-    save_parmed(parmed_sys, fname_trunc)
+    save_parmed(modeller, setup, forcefield_of_this_system, final_positions, 
+                fname_trunc, export_flags=export_flags)
     return None
 
 
