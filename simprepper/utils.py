@@ -103,7 +103,7 @@ def export_all_files(system, simulation, setup, suffix, modeller, forcefield):
         nonbondedCutoff=setup.nb_cutoff,
         removeCMMotion=False,
         rigidWater=False,
-        hydrogenMass=setup.hydrogenMass,
+        hydrogenMass=setup.hydrogen_mass,
     )
     parmed_sys = parmed.openmm.load_topology(
         modeller.getTopology(), new_system, final_positions
