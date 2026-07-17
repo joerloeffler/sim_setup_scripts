@@ -16,15 +16,15 @@ import os
 SimSetupField = namedtuple("SimSetupField", ["name", "unit", "default", "data_type"])
 CONFIG_SECTIONS = {
     "simulation box": [
-        SimSetupField("boxShape", None, "cube", str),
+        SimSetupField("box_shape", None, "cube", str),
         SimSetupField("padding", mm_units.nanometer, 3.0, float),
     ],
     "simulation": [
         SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
-        SimSetupField("hydrogenMass", mm_units.amu, 4.0, float),
+        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, float),
         SimSetupField("timestep", mm_units.picoseconds, 0.004, float),
         SimSetupField("temperature", mm_units.kelvin, 300.0, float),
-        SimSetupField("ionicStrength", mm_units.molar, 0.15, float),
+        SimSetupField("ionic_strength", mm_units.molar, 0.15, float),
         SimSetupField("ph", None, 7.4, float),
     ],
     "forcefields": [
@@ -52,12 +52,12 @@ class SimSetup:
     rec_fname     : str         = "DEFAULT_REC_NAME"
     lig_fname     : str | None  = None
     nb_cutoff     : mm_quantity = field(default_factory=lambda: get_field_default("nb_cutoff", CONFIG_SECTIONS))
-    hydrogenMass  : mm_quantity = field(default_factory=lambda: get_field_default("hydrogenMass", CONFIG_SECTIONS))
+    hydrogen_mass : mm_quantity = field(default_factory=lambda: get_field_default("hydrogen_mass", CONFIG_SECTIONS))
     timestep      : mm_quantity = field(default_factory=lambda: get_field_default("timestep", CONFIG_SECTIONS))
     temperature   : mm_quantity = field(default_factory=lambda: get_field_default("temperature", CONFIG_SECTIONS))
-    boxShape      : str         = field(default_factory=lambda: get_field_default("boxShape", CONFIG_SECTIONS))
+    box_shape     : str         = field(default_factory=lambda: get_field_default("box_shape", CONFIG_SECTIONS))
     padding       : mm_quantity = field(default_factory=lambda: get_field_default("padding", CONFIG_SECTIONS))
-    ionicStrength : mm_quantity = field(default_factory=lambda: get_field_default("ionicStrength", CONFIG_SECTIONS))
+    ionic_strength: mm_quantity = field(default_factory=lambda: get_field_default("ionic_strength", CONFIG_SECTIONS))
     ph            : float       = field(default_factory=lambda: get_field_default("ph", CONFIG_SECTIONS))
     ligand_ff     : str         = field(default_factory=lambda: get_field_default("ligand_ff", CONFIG_SECTIONS))
     protein_ff    : str         = field(default_factory=lambda: get_field_default("protein_ff", CONFIG_SECTIONS))
@@ -79,9 +79,9 @@ class SimSetup:
                 sys_name      = sys_name,
                 rec_fname     = args.rec,
                 lig_fname     = args.lig,
-                hydrogenMass  = args.Hmass * mm_units.amu,  # default =4
+                hydrogen_mass = args.Hmass * mm_units.amu,  # default =4
                 temperature   = args.temperature * mm_units.kelvin,
-                boxShape      = args.box_shape, # cube, dodecahedron
+                box_shape     = args.box_shape, # cube, dodecahedron
                 padding       = args.box_padding * mm_units.nanometer, 
                 ligand_ff     = args.ligand_ff, # default = "GAFF"  # espaloma, SMIRNOFF, GAFF
                 protein_ff    = args.protein_ff, # default = "amber14/protein.ff14SB.xml"
