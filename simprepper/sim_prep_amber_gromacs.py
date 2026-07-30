@@ -91,15 +91,23 @@ def main():
 
     logging.info("Modelling the system...")
 
-    # Create an OpenMM ForceField object with parsed forcefields 
-    forcefield = mm_apps.ForceField(
-        setup.protein_ff,
-        setup.water_ff,
-        setup.ion_ff,
-        setup.lipid_ff,
-    )
-
-    logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
+    # Create an OpenMM ForceField object with parsed forcefields
+    if setup.lipid_ff is None:
+        forcefield = mm_apps.ForceField(
+            setup.protein_ff,
+            setup.water_ff,
+            setup.ion_ff
+        )
+        logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, and {setup.ion_ff} forcefields.")
+    else:
+        forcefield = mm_apps.ForceField(
+            setup.protein_ff,
+            setup.water_ff,
+            setup.ion_ff,
+            setup.lipid_ff,
+        )
+        logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
+    
 
     # Make an OpenMM Modeller object with the protein
     sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 

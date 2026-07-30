@@ -32,7 +32,7 @@ CONFIG_SECTIONS = {
         SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", str),
         SimSetupField("water_ff", None, "amber14/tip3pfb.xml", str),
         SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", str),
-        SimSetupField("lipid_ff", None, "amber14/lipid17.xml", str),
+        SimSetupField("lipid_ff", None, None, str),
     ]
 }
 
@@ -63,7 +63,7 @@ class SimSetup:
     protein_ff    : str         = field(default_factory=lambda: get_field_default("protein_ff", CONFIG_SECTIONS))
     water_ff      : str         = field(default_factory=lambda: get_field_default("water_ff", CONFIG_SECTIONS))
     ion_ff        : str         = field(default_factory=lambda: get_field_default("ion_ff", CONFIG_SECTIONS))
-    lipid_ff      : str         = field(default_factory=lambda: get_field_default("lipid_ff", CONFIG_SECTIONS))
+    lipid_ff      : str | None  = field(default_factory=lambda: get_field_default("lipid_ff", CONFIG_SECTIONS))
 
     @classmethod
     def from_args(cls,
@@ -87,7 +87,7 @@ class SimSetup:
                 protein_ff    = args.protein_ff, # default = "amber14/protein.ff14SB.xml"
                 water_ff      = args.water_ff, # default = "amber14/tip3pfb.xml"
                 ion_ff        = args.ion_ff, # default = "amber/tip3p_HFE_multivalent.xml"
-                lipid_ff      = args.lipid_ff, # default = "amber14/lipid17.xml"
+                lipid_ff      = args.lipid_ff, # default = None
         )
         # NOTE: This method is still functional but it is a legacy feature, so it will not be futher developed.
         # Using the .ini file is the recommended way to go, as it allows for more flexibility and a wider range of options.
@@ -127,6 +127,11 @@ class SimSetup:
                 # Fall back to the dataclass default if the field is missing
                 if value is None:
                     props[field.name] = getattr(defaults, field.name)
+                    continue
+
+                # Allow explicit None in the config file (e.g. lipid_ff = None)
+                if value.strip().lower() == "none":
+                    props[field.name] = None
                     continue
 
                 # Convert the value to the appropriate type
