@@ -99,14 +99,12 @@ simprepper-example-config -o default_config.ini
 
 This will create a template that can be modified and reused for future simulations.
 
-An example of a membrane protein system configuration can be generated using a `--membrane` flag:
-```bash
-simprepper-example-config -o default_config.ini --membrane
-```
-
 
 The configuration file is organized into sections:
 ```bash
+[system]
+membrane_protein = False
+
 [simulation]
 nb_cutoff = 1.0  # nanometer
 hydrogen_mass = 4.0  # g/mol
@@ -129,10 +127,48 @@ lipid_ff = None
 
 Numerical values are stored in a machine-readable format. Unit annotations are included as comments for readability and are ignored during parsing.
 
+
+### Membrane protein systems
+
+**Important**: The input PDB file for a membrane protein system must be pre-oriented with respect to the membrane, for example using the [PPM server](https://opm.phar.umich.edu/ppm_server) or by obtaining the structure from the [OPM database](https://opm.phar.umich.edu/). In addition, any `DUM` residues (created by PPM) must be removed from the structure before running `simprepper`.
+
+An example of a membrane protein system configuration can be generated using a `--membrane` flag:
+```bash
+simprepper-example-config -o default_config.ini --membrane
+```
+
+The `membrane_protein` flag should be set to `True` in the config file. The setup for membrane systems includes an additional section called `[membrane]` and does not contain the `[simulation box]` section since OpenMM's `addMembrane()` function does not take box parameters.
+
+```bash
+[system]
+membrane_protein = True
+
+[membrane]
+lipid_type = POPC
+membrane_center_z = 0.0
+minimum_padding = 1.0  # nanometer
+
+[simulation]
+nb_cutoff = 1.0  # nanometer
+hydrogen_mass = 4.0  # g/mol
+timestep = 0.004  # picosecond
+temperature = 300.0  # kelvin
+ionic_strength = 0.15  # molar
+ph = 7.4
+
+[forcefields]
+ligand_ff = GAFF
+protein_ff = amber14/protein.ff14SB.xml
+water_ff = amber14/tip3pfb.xml
+ion_ff = amber/tip3p_HFE_multivalent.xml
+lipid_ff = amber14/lipid17.xml
+```
+
+
 ## Testing
 
 For developers, and to check, if the installation worked out, check the subdirectory [examples](examples/), 
-which currently contains two different use-cases.
+which currently contains three different use-cases.
 
 
 ---
@@ -230,7 +266,7 @@ Pipeline overview:
 2. Ligand loading (RDKit → OpenFF)
 3. Ligand parametrization (OpenMMForceFields)
 4. System assembly (Modeller)
-5. Solvation (TIP3P-FB + ions)
+5. Solvation (TIP3P-FB + ions or lipids + TIP3P-FB + ions)
 6. System creation (OpenMM)
 7. Export (OpenMM / AMBER / GROMACS)
 
