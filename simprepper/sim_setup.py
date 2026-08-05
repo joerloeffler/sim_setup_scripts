@@ -16,7 +16,7 @@ import os
 SimSetupField = namedtuple("SimSetupField", ["name", "unit", "default", "data_type"])
 CONFIG_SECTIONS = {
     "system": [
-        SimSetupField("membrane", None, False, bool),
+        SimSetupField("membrane_protein", None, False, bool),
     ],
     "membrane": [     # membrane parameters present only if membrane=True
         SimSetupField("lipid_type", None, "POPC", str),
@@ -59,7 +59,7 @@ class SimSetup:
     sys_name         : str         = "DEFAULT_SYS_NAME"
     rec_fname        : str         = "DEFAULT_REC_NAME"
     lig_fname        : str | None  = None
-    membrane         : bool        = field(default_factory=lambda: get_field_default("membrane", CONFIG_SECTIONS))
+    membrane_protein : bool        = field(default_factory=lambda: get_field_default("membrane_protein", CONFIG_SECTIONS))
     lipid_type       : str         = field(default_factory=lambda: get_field_default("lipid_type", CONFIG_SECTIONS))
     membrane_center_z: float       = field(default_factory=lambda: get_field_default("membrane_center_z", CONFIG_SECTIONS))
     minimum_padding  : mm_quantity = field(default_factory=lambda: get_field_default("minimum_padding", CONFIG_SECTIONS))
@@ -185,7 +185,7 @@ class SimSetup:
         if membrane_flag:
             # If membrane_flag is True, include the membrane section
             sections_to_include = ["system", "membrane", "simulation", "forcefields"]
-            config["system"]["membrane"] = "True"
+            config["system"]["membrane_protein"] = "True"
             # NOTE: The forcefield section will soon change so this fragment will also need to be adapted.
             config["forcefields"]["lipid_ff"] = "amber14/lipid17.xml" 
         else:
