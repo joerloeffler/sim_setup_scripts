@@ -99,6 +99,12 @@ simprepper-example-config -o default_config.ini
 
 This will create a template that can be modified and reused for future simulations.
 
+An example of a membrane protein system configuration can be generated using a `--membrane` flag:
+```bash
+simprepper-example-config -o default_config.ini --membrane
+```
+
+
 The configuration file is organized into sections:
 ```bash
 [simulation]
@@ -118,7 +124,7 @@ ligand_ff = GAFF
 protein_ff = amber14/protein.ff14SB.xml
 water_ff = amber14/tip3pfb.xml
 ion_ff = amber/tip3p_HFE_multivalent.xml
-lipid_ff = amber14/lipid17.xml
+lipid_ff = None
 ```
 
 Numerical values are stored in a machine-readable format. Unit annotations are included as comments for readability and are ignored during parsing.
@@ -163,7 +169,7 @@ logs/<system_name>.log
 | Protein Force field   | AMBER ff14SB          |
 | Water model           | TIP3P-FB              |
 | Ion Parameters        | HFE multivalent       |
-| Lipid Force Field     | AMBER Lipid17         |
+| Lipid Force Field     | None                  |
 | Box shape             | Cube                  |
 | Padding               | 3 nm                  |
 | Ionic strength        | 0.15 M                |

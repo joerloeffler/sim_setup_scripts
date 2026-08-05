@@ -15,9 +15,13 @@ import os
 # the parameters, but this can be solved later.
 SimSetupField = namedtuple("SimSetupField", ["name", "unit", "default", "data_type"])
 CONFIG_SECTIONS = {
-    "simulation box": [
-        SimSetupField("box_shape", None, "cube", str),
-        SimSetupField("padding", mm_units.nanometer, 3.0, float),
+    "system": [
+        SimSetupField("membrane", None, False, bool),
+    ],
+    "membrane": [     # membrane parameters present only if membrane=True
+        SimSetupField("lipid_type", None, "POPC", str),
+        SimSetupField("membrane_center_z", None, 0.0, float),
+        SimSetupField("minimum_padding", mm_units.nanometer, 1.0, float),
     ],
     "simulation": [
         SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
@@ -26,6 +30,10 @@ CONFIG_SECTIONS = {
         SimSetupField("temperature", mm_units.kelvin, 300.0, float),
         SimSetupField("ionic_strength", mm_units.molar, 0.15, float),
         SimSetupField("ph", None, 7.4, float),
+    ],
+    "simulation box": [
+        SimSetupField("box_shape", None, "cube", str),
+        SimSetupField("padding", mm_units.nanometer, 3.0, float),
     ],
     "forcefields": [
         SimSetupField("ligand_ff", None, "GAFF", str),
@@ -48,22 +56,26 @@ class SimSetup:
     So defining default values is not actually necessary. 
     HOWEVER, if you do not define a default value, it will be considered a non-default argument, which cannot follow a default argument...
     """
-    sys_name      : str         = "DEFAULT_SYS_NAME"
-    rec_fname     : str         = "DEFAULT_REC_NAME"
-    lig_fname     : str | None  = None
-    nb_cutoff     : mm_quantity = field(default_factory=lambda: get_field_default("nb_cutoff", CONFIG_SECTIONS))
-    hydrogen_mass : mm_quantity = field(default_factory=lambda: get_field_default("hydrogen_mass", CONFIG_SECTIONS))
-    timestep      : mm_quantity = field(default_factory=lambda: get_field_default("timestep", CONFIG_SECTIONS))
-    temperature   : mm_quantity = field(default_factory=lambda: get_field_default("temperature", CONFIG_SECTIONS))
-    box_shape     : str         = field(default_factory=lambda: get_field_default("box_shape", CONFIG_SECTIONS))
-    padding       : mm_quantity = field(default_factory=lambda: get_field_default("padding", CONFIG_SECTIONS))
-    ionic_strength: mm_quantity = field(default_factory=lambda: get_field_default("ionic_strength", CONFIG_SECTIONS))
-    ph            : float       = field(default_factory=lambda: get_field_default("ph", CONFIG_SECTIONS))
-    ligand_ff     : str         = field(default_factory=lambda: get_field_default("ligand_ff", CONFIG_SECTIONS))
-    protein_ff    : str         = field(default_factory=lambda: get_field_default("protein_ff", CONFIG_SECTIONS))
-    water_ff      : str         = field(default_factory=lambda: get_field_default("water_ff", CONFIG_SECTIONS))
-    ion_ff        : str         = field(default_factory=lambda: get_field_default("ion_ff", CONFIG_SECTIONS))
-    lipid_ff      : str | None  = field(default_factory=lambda: get_field_default("lipid_ff", CONFIG_SECTIONS))
+    sys_name         : str         = "DEFAULT_SYS_NAME"
+    rec_fname        : str         = "DEFAULT_REC_NAME"
+    lig_fname        : str | None  = None
+    membrane         : bool        = field(default_factory=lambda: get_field_default("membrane", CONFIG_SECTIONS))
+    lipid_type       : str         = field(default_factory=lambda: get_field_default("lipid_type", CONFIG_SECTIONS))
+    membrane_center_z: float       = field(default_factory=lambda: get_field_default("membrane_center_z", CONFIG_SECTIONS))
+    minimum_padding  : mm_quantity = field(default_factory=lambda: get_field_default("minimum_padding", CONFIG_SECTIONS))
+    nb_cutoff        : mm_quantity = field(default_factory=lambda: get_field_default("nb_cutoff", CONFIG_SECTIONS))
+    hydrogen_mass    : mm_quantity = field(default_factory=lambda: get_field_default("hydrogen_mass", CONFIG_SECTIONS))
+    timestep         : mm_quantity = field(default_factory=lambda: get_field_default("timestep", CONFIG_SECTIONS))
+    temperature      : mm_quantity = field(default_factory=lambda: get_field_default("temperature", CONFIG_SECTIONS))
+    box_shape        : str         = field(default_factory=lambda: get_field_default("box_shape", CONFIG_SECTIONS))
+    padding          : mm_quantity = field(default_factory=lambda: get_field_default("padding", CONFIG_SECTIONS))
+    ionic_strength   : mm_quantity = field(default_factory=lambda: get_field_default("ionic_strength", CONFIG_SECTIONS))
+    ph               : float       = field(default_factory=lambda: get_field_default("ph", CONFIG_SECTIONS))
+    ligand_ff        : str         = field(default_factory=lambda: get_field_default("ligand_ff", CONFIG_SECTIONS))
+    protein_ff       : str         = field(default_factory=lambda: get_field_default("protein_ff", CONFIG_SECTIONS))
+    water_ff         : str         = field(default_factory=lambda: get_field_default("water_ff", CONFIG_SECTIONS))
+    ion_ff           : str         = field(default_factory=lambda: get_field_default("ion_ff", CONFIG_SECTIONS))
+    lipid_ff         : str | None  = field(default_factory=lambda: get_field_default("lipid_ff", CONFIG_SECTIONS))
 
     @classmethod
     def from_args(cls,
@@ -145,13 +157,13 @@ class SimSetup:
 
         return cls(**props)
     
-    def to_ini(self, out_fname):
+    def to_ini(self, out_fname, membrane_flag=False):
         """
         Write the simulation setup to an ini file. This can be used to reload the same setup later, or to use it as a template for other setups.
         """
         props = asdict(self)
         config = ConfigParser()
-
+        
         for key, value in props.items():
             # retrieve the SimSetupField object for the current key
             field = get_field(key, CONFIG_SECTIONS)
@@ -168,8 +180,26 @@ class SimSetup:
             else:
                 config[section][key] = str(value)
 
+        # NOTE: This is a temporary solution to handle the membrane_flag, I'm not fully content with this solution. 
+        # Ideally, we should have a more elegant way to handle this, but for now, this will suffice.
+        if membrane_flag:
+            # If membrane_flag is True, include the membrane section
+            sections_to_include = ["system", "membrane", "simulation", "forcefields"]
+            config["system"]["membrane"] = "True"
+            # NOTE: The forcefield section will soon change so this fragment will also need to be adapted.
+            config["forcefields"]["lipid_ff"] = "amber14/lipid17.xml" 
+        else:
+            # If membrane_flag is False, exclude the membrane section
+            sections_to_include = ["system", "simulation", "simulation box", "forcefields"]
+
+        # Create a filtered config & filter sections
+        filtered_config = ConfigParser()
+        for section in sections_to_include:
+            if section in config:
+                filtered_config[section] = dict(config[section])
+
         with open(out_fname, "w") as f:
-            config.write(f)
+            filtered_config.write(f)
         return None
 
 

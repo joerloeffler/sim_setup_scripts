@@ -216,8 +216,13 @@ def write_example_ini():
         default="default_config.ini",
         help="Output .ini filename"
     )
+    parser.add_argument(
+        "--membrane",
+        action="store_true",
+        help="Generate a configuration template for a membrane protein system"
+    )
     args = parser.parse_args()
 
-    SimSetup().to_ini(args.output)
+    SimSetup().to_ini(args.output, args.membrane)
 
     print(f"Wrote example config to {args.output}")
