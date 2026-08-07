@@ -147,7 +147,11 @@ class SimSetup:
                     continue
 
                 # Convert the value to the appropriate type
-                value = field.data_type(value)
+                if field.data_type is bool:
+                    # boolean values are a special case (otherwise any string would be interpreted as True)
+                    value = section_data.getboolean(field.name)
+                else:
+                    value = field.data_type(value)
 
                 # Attach the OpenMM unit if present
                 if field.unit is not None:

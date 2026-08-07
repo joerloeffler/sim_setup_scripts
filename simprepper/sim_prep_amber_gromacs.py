@@ -143,13 +143,26 @@ def main():
     else:
         logging.info("No ligand provided. Running protein-only setup.")
 
-    logging.info("Adding solvent and ions...")
-    sys_modeller.addSolvent(forcefield,
-                            ionicStrength=setup.ionic_strength,
-                            neutralize=True,
-                            boxShape=setup.box_shape,
-                            padding=setup.padding,
-                            )
+    if setup.membrane_protein:
+        logging.info("Preparing membrane protein system. Adding membrane, solvent, and ions...")
+        # TODO: find a way to define box size more precisely
+        sys_modeller.addMembrane(forcefield,
+                                lipidType=setup.lipid_type,
+                                membraneCenterZ=setup.membrane_center_z,
+                                minimumPadding=setup.minimum_padding,
+                                ionicStrength=setup.ionic_strength,
+                                neutralize=True,
+                                )
+    else:
+        logging.info("Preparing soluble protein system. Adding solvent and ions...")
+        # TODO: bring back an option of providing box_length instead of box_padding (was implemented with 
+        # argument parsing, but got lost with the new config file approach)
+        sys_modeller.addSolvent(forcefield,
+                                ionicStrength=setup.ionic_strength,
+                                neutralize=True,
+                                boxShape=setup.box_shape,
+                                padding=setup.padding,
+                                )
 
     logging.info("Selecting MD platform...")
     platform = select_platform("fastest")
@@ -188,7 +201,7 @@ def main():
     if SHOULD_SAVE_SETUP:
         out_fname = os.path.join(LOG_PATH, "simprepper.out.ini")
         logging.info(f"Writing simulation setup to file {out_fname}.")
-        setup.to_ini(out_fname)
+        setup.to_ini(out_fname, setup.membrane_protein)
 
     logging.info("All done!")
 
