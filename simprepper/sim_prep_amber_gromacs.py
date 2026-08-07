@@ -17,8 +17,12 @@ from simprepper.argument_parsing import parser
 from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension, check_initial_box_dimensions, calculate_protein_dimensions
 from simprepper.utils import ExportPathManager
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
+<<<<<<< HEAD
 from simprepper.sim_setup import SimSetup
 from simprepper.setup_checker import SetupChecker
+=======
+from simprepper.sim_setup import SimSetup, BoxSection
+>>>>>>> prototype for ConfigSections
 
 # OpenMM imports
 import openmm
@@ -126,6 +130,7 @@ def main():
 
     logging.info("Modelling the system...")
 
+<<<<<<< HEAD
     # Create an OpenMM ForceField object with parsed forcefields
     if setup.lipid_ff is None:
         forcefield = mm_apps.ForceField(
@@ -143,6 +148,41 @@ def main():
         )
         logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
     
+<<<<<<< HEAD
+=======
+=======
+    # Create an OpenMM ForceField object with parsed forcefields 
+    forcefield = mm_apps.ForceField(
+        setup.protein_ff,
+        setup.water_ff,
+        setup.ion_ff,
+        setup.lipid_ff,
+    )
+    # 1. Instantiate default values directly via from_defaults()
+    box = BoxSection.from_defaults()
+
+    print(box.section_name)  # Output: simulation_box
+    print(box.fields)        # Output: {'box_shape': 'cube', 'padding': 3.0}
+
+    # 2. Override specific fields on creation
+    custom_box = BoxSection.from_kwargs(padding=5.0)
+    print(custom_box)
+    print(custom_box.fields["box_shape"]) # Output: {'box_shape': 'cube', 'padding': 5.0}
+    print(custom_box.fields["padding"]) # Output: {'box_shape': 'cube', 'padding': 5.0}
+
+    # 2. Override specific fields on creation
+    faulty_box = BoxSection.from_kwargs(cookie="tasty")
+    print(faulty_box.fields) # Output: {'box_shape': 'cube', 'padding': 5.0}
+    print("Quitting debugging run...")
+    quit()
+    logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
+>>>>>>> prototype for ConfigSections
+
+    # Make an OpenMM Modeller object with the protein
+    sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 
+                                    pdb_fixed.positions)
+
+>>>>>>> prototype for ConfigSections
     # Optional ligand
     if setup.lig_fname:
         #NOTE: `ligand` is not acually used anywhere anymore

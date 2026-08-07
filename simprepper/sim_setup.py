@@ -16,6 +16,99 @@ os.environ["JAX_ENABLE_X64"] = "True" # get rid of annoying JAX warning
 # and also add it to the SimSetup dataclass. Ideally, we would like to have a single source of truth for 
 # the parameters, but this can be solved later.
 SimSetupField = namedtuple("SimSetupField", ["name", "unit", "default", "data_type"])
+
+# %% Template class for Config-sections
+@dataclass
+class AbstractConfigSection:
+    section_name         : str   = ""
+    key_in_config        : str   = ""
+    default_fields       : dict  = field(default_factory=dict)
+    fields               : dict  = field(default_factory=dict)
+
+    def __init__(self, input_fields):
+        self.fields = input_fields
+
+    @classmethod
+    def from_defaults(cls):
+        """Constructs an instance using the class's default_fields dict."""
+        initial_fields = {
+            name: setup_field  for name, setup_field in cls.default_fields.items()
+            }
+        
+        return cls(section_name=cls.section_name,
+                   key_in_config=cls.key_in_config,
+                   fields=initial_fields)
+
+    @classmethod
+    def from_kwargs(cls, **kwargs):
+        """Constructs an instance using input arguments. 
+        For any field that is missing, use default instead..."""
+        initial_fields = {
+                    name: setup_field  for name, setup_field in cls.default_fields.items()
+                    }
+        # check the kwargs, if they exists in the default definition. 
+        # Otherwise arbitrary properties could be added
+        filtered_kwargs = {}
+        for key,val in kwargs.items():
+            if key not in cls.default_fields.keys():
+                print("Ingnoring unkown field {}".format(key))  # This should never happen, from ini-files,
+                # because in ini files, we already sanity check the fields before initialization.
+                continue
+            filtered_kwargs[key] = val
+        # Update default values with any explicit kwargs that have been given
+        initial_fields.update(filtered_kwargs)
+    
+        return cls(section_name=cls.section_name,
+                   key_in_config=cls.key_in_config,
+                   fields=initial_fields)
+
+
+@dataclass
+class BoxSection(AbstractConfigSection):
+    name               = "simulation_box"
+    key_in_config      = "simulation box"
+    # class-level definition of the default values
+    _list_of_defaults  = [SimSetupField("box_shape", None, "cube", str),
+                          SimSetupField("padding", mm_units.nanometer, 3.0, float),
+                          ]
+    default_fields     = {f.name: f for f in _list_of_defaults}
+
+
+@dataclass
+class SimSection(AbstractConfigSection):
+    name               = "simulation"
+    key_in_config      = "simulation"
+    # class-level definition of the default values
+    _list_of_defaults  = [
+        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
+        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, float),
+        SimSetupField("timestep", mm_units.picoseconds, 0.004, float),
+        SimSetupField("temperature", mm_units.kelvin, 300.0, float),
+        SimSetupField("ionic_strength", mm_units.molar, 0.15, float),
+        SimSetupField("ph", None, 7.4, float),
+    ]
+    default_fields    = {f.name: f for f in _list_of_defaults}
+
+
+@dataclass
+class ForceFieldsSectionAmber(AbstractConfigSection):
+    name               = "forcefields"
+    key_in_config      = "forcefields"
+    # class-level definition of the default values
+    _list_of_defaults  = [
+        SimSetupField("ligand_ff", None, "GAFF", str),
+        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", str),
+        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", str),
+        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", str),
+        SimSetupField("lipid_ff", None, "amber14/lipid17.xml", str),
+    ]
+    default_fields     = {f.name: f for f in _list_of_defaults}
+
+# This would be the new version, using the Section class:
+_CONFIG_SECTIONS = [BoxSection, SimSection, ForceFieldsSectionAmber]
+_CONFIG_SECTIONS = {section.name:section for section in _CONFIG_SECTIONS}
+
+# this is the original version (until AUG/2026)
 CONFIG_SECTIONS = {
     "system": [
         SimSetupField("membrane_protein", None, False, bool),
