@@ -26,7 +26,7 @@ from openmm import unit as mm_units
 
 # %% CONSTANTS
 #TODO: make LOG_PATH a parsable argument?
-LOG_PATH = 'prot_prep_logs'
+LOG_PATH = 'simprepper_logs'
 #TODO: Will we ever not want to save the setup?
 SHOULD_SAVE_CONFIG = True
 
