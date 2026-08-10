@@ -141,7 +141,7 @@ An example of a membrane protein system configuration can be generated using a `
 simprepper-example-config -o default_config.ini --membrane
 ```
 
-The `membrane_protein` flag should be set to `True` in the config file. The setup for membrane systems includes an additional section called `[membrane]` and does not contain the `[simulation box]` section since OpenMM's `addMembrane()` function does not take box parameters.
+The `membrane_protein` flag should be set to `True` in the config file. The setup for membrane systems includes an additional section called `[membrane_box]` and does not contain the `[water_box]` section since OpenMM's `addMembrane()` function does not take box parameters.
 
 ```bash
 [system]
