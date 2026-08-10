@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from openmmtools.utils import get_fastest_platform
 from openmm import app as mm_apps
 from openmm.app import forcefield
+from openmm import unit as mm_units
 from simprepper.sim_setup import SimSetup
 
 
@@ -241,10 +242,51 @@ def write_example_ini():
         default="default_config.ini",
         help="Output .ini filename"
     )
+    parser.add_argument(
+        "--membrane",
+        action="store_true",
+        help="Generate a configuration template for a membrane protein system"
+    )
     args = parser.parse_args()
 
-    SimSetup().to_ini(args.output)
+    SimSetup().to_ini(args.output, args.membrane)
 
+    print(f"Wrote example config to {args.output}")
+
+
+def calculate_protein_dimensions(positions):
+    """
+    Calculate the bounding dimensions (X, Y, Z) of the protein 
+    based on its atomic coordinates array (in nanometers).
+    """
+    min_coords = positions.min(axis=0)
+    max_coords = positions.max(axis=0)
+    return max_coords - min_coords
+
+
+def check_initial_box_dimensions(protein_dimensions, box_vectors):
+    """
+    Check if the initial periodic box dimensions are sufficient to accommodate the protein.
+    """
+    axis_names = ['X', 'Y', 'Z']
+    
+    # Extract periodic box diagonal lengths in nanometers
+    box_lengths = [
+        box_vectors[i][i].value_in_unit(mm_units.nanometers) 
+        if hasattr(box_vectors[i][i], 'value_in_unit') 
+        else box_vectors[i][i] 
+        for i in range(3)
+    ]
+    
+    # Check each axis against protein extent
+    for i in range(3):
+        if protein_dimensions[i] > box_lengths[i]:
+            logging.warning(
+                f"Initial box dimension {axis_names[i]} ({box_lengths[i]:.2f} nm) "
+                f"is smaller than protein span ({protein_dimensions[i]:.2f} nm). "
+                f"OpenMM will and expand the unit cell during membrane/solvent addition. " 
+                f"Make sure to inspect if the final box dimensions are sufficient to accommodate the protein and any added solvent/ions."
+            )
     print(f"Wrote example config to {args.output}")
 
 
@@ -307,6 +349,7 @@ class ExportPathManager:
         props["output_fnames"] = output_filenames
         props["printout_flags"] = ", ".join(printout_flags)
         return cls(**props)
+    
     
     def get_subsubdirectories(self):
         ssdirs = []
