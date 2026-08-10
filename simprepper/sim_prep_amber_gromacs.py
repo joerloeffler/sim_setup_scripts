@@ -12,9 +12,9 @@ logging.getLogger("pymbar").setLevel(logging.ERROR)
 
 # %% other imports
 
-# import numpy as np
+import numpy as np
 from simprepper.argument_parsing import parser
-from simprepper.utils import select_platform, get_sysname, get_basename, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension
+from simprepper.utils import select_platform, get_sysname, get_basename, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension, check_initial_box_dimensions, calculate_protein_dimensions
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
 
@@ -142,6 +142,13 @@ def main():
         # sys_modeller.add(ligand_topology, ligand_positions)
     else:
         logging.info("No ligand provided. Running protein-only setup.")
+
+    # Check the protein dimensions against initial periodic box vectors
+    positions = sys_modeller.positions.value_in_unit(mm_units.nanometers)
+    pos_array = np.array(positions)
+    protein_dims = calculate_protein_dimensions(pos_array)
+    initial_box_vectors = sys_modeller.topology.getPeriodicBoxVectors()
+    check_initial_box_dimensions(protein_dims, initial_box_vectors)
 
     if setup.membrane_protein:
         logging.info("Preparing membrane protein system. Adding membrane, solvent, and ions...")
