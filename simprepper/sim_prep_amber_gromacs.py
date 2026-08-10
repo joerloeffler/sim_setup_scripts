@@ -12,9 +12,9 @@ logging.getLogger("pymbar").setLevel(logging.ERROR)
 
 # %% other imports
 
-# import numpy as np
+import numpy as np
 from simprepper.argument_parsing import parser
-from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension
+from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension, check_initial_box_dimensions, calculate_protein_dimensions
 from simprepper.utils import ExportPathManager
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
@@ -119,15 +119,23 @@ def main():
 
     logging.info("Modelling the system...")
 
-    # Create an OpenMM ForceField object with parsed forcefields 
-    forcefield = mm_apps.ForceField(
-        setup.protein_ff,
-        setup.water_ff,
-        setup.ion_ff,
-        setup.lipid_ff,
-    )
+    # Create an OpenMM ForceField object with parsed forcefields
+    if setup.lipid_ff is None:
+        forcefield = mm_apps.ForceField(
+            setup.protein_ff,
+            setup.water_ff,
+            setup.ion_ff
+        )
+        logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, and {setup.ion_ff} forcefields.")
+    else:
+        forcefield = mm_apps.ForceField(
+            setup.protein_ff,
+            setup.water_ff,
+            setup.ion_ff,
+            setup.lipid_ff,
+        )
+        logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
     
-    logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
 
     # Make an OpenMM Modeller object with the protein
     sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 
@@ -148,13 +156,33 @@ def main():
     else:
         logging.info("No ligand provided. Running protein-only setup.")
 
-    logging.info("Adding solvent and ions...")
-    sys_modeller.addSolvent(forcefield,
-                            ionicStrength=setup.ionic_strength,
-                            neutralize=True,
-                            boxShape=setup.box_shape,
-                            padding=setup.padding,
-                            )
+    # Check the protein dimensions against initial periodic box vectors
+    positions = sys_modeller.positions.value_in_unit(mm_units.nanometers)
+    pos_array = np.array(positions)
+    protein_dims = calculate_protein_dimensions(pos_array)
+    initial_box_vectors = sys_modeller.topology.getPeriodicBoxVectors()
+    check_initial_box_dimensions(protein_dims, initial_box_vectors)
+
+    if setup.membrane_protein:
+        logging.info("Preparing membrane protein system. Adding membrane, solvent, and ions...")
+        # TODO: find a way to define box size more precisely
+        sys_modeller.addMembrane(forcefield,
+                                lipidType=setup.lipid_type,
+                                membraneCenterZ=setup.membrane_center_z,
+                                minimumPadding=setup.minimum_padding,
+                                ionicStrength=setup.ionic_strength,
+                                neutralize=True,
+                                )
+    else:
+        logging.info("Preparing soluble protein system. Adding solvent and ions...")
+        # TODO: bring back an option of providing box_length instead of box_padding (was implemented with 
+        # argument parsing, but got lost with the new config file approach)
+        sys_modeller.addSolvent(forcefield,
+                                ionicStrength=setup.ionic_strength,
+                                neutralize=True,
+                                boxShape=setup.box_shape,
+                                padding=setup.padding,
+                                )
 
     logging.info("Selecting MD platform...")
     platform = select_platform("fastest")
@@ -193,7 +221,7 @@ def main():
     if SHOULD_SAVE_CONFIG:
         out_fname = os.path.join(LOG_PATH, "simprepper.out.ini")
         logging.info(f"Writing simulation setup to file {out_fname}.")
-        setup.to_ini(out_fname)
+        setup.to_ini(out_fname, setup.membrane_protein)
 
     logging.info("All done!")
 
