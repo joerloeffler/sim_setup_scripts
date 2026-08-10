@@ -1,5 +1,20 @@
 import argparse
 
+def str2bool(v) -> bool:
+    """This function enables the translation of user input to actual boolean values
+    otherwise bool("false") would return `True`,
+    which is really not what the user wants...
+    """
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 parser = argparse.ArgumentParser(
                 prog="simprepper",
                 description="\n".join(["Module to prepare OpenMM system starting from protein and optional ligand files.",
@@ -34,8 +49,21 @@ parser.add_argument("-i", "--ini",
                     help="ini-file with simulation parameters",
                     required=False,
                     )
-# %% various
+# %% different output
 
+parser.add_argument("--gmx_output",
+                    help="Flag: Generate files for gromacs",
+                    type=str2bool, default=True, dest="should_export_gmx")
+
+parser.add_argument("--amber_output",
+                    help="Flag: Generate files for amber",
+                    type=str2bool, default=True, dest="should_export_amber")
+
+parser.add_argument("--openmm_output",
+                    help="Flag: Generate files for openmm",
+                    type=str2bool, default=True, dest="should_export_openmm")
+
+# %% forcefields
 parser.add_argument("--protein_ff",
                     help="Force field for protein (to list all available force fields in OpenMM, see simprepper-forcefields)",
                     default="amber14/protein.ff14SB.xml"
@@ -62,6 +90,9 @@ parser.add_argument("--ligand_ff",
                     default="GAFF",
                     required=False
                     )
+
+# %% various
+
 parser.add_argument('--temperature', 
                     help='Simulation temperature', 
                     type=float, default=300.0, required=False)
@@ -79,5 +110,4 @@ parser.add_argument('--box_shape',
                     help='Shape of box', 
                     choices=['cube', 'dodecahedron'], 
                     default='cube', required=False)
-
 

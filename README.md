@@ -1,8 +1,10 @@
 # OpenMM System Preparation Pipeline
 
-A lightweight Python script to prepare solvated molecular systems for simulation using **OpenMM**, with optional ligand parametrization via **Espaloma, SMIRNOFF, or GAFF**.
+A lightweight Python program to prepare solvated molecular systems for simulation using **OpenMM**, with optional ligand parametrization via **Espaloma, SMIRNOFF, or GAFF**.
 
-This tool converts a receptor (PDB) and optional ligand (SDF) into fully parameterized systems ready for **OpenMM**, **AMBER**, and **GROMACS** workflows.
+This tool converts a receptor (PDB) and optional ligand (SDF) into fully parameterized systems ready for **OpenMM**, **AMBER**, and **GROMACS** workflows.  
+
+It can be run from the command-line, given that it was properly installed, e.g., via pip. Besides that, we support usage in python scripts and notebooks (this feature is under development).
 
 ---
 
@@ -62,6 +64,8 @@ simprepper --help
 ---
 
 ## Usage
+
+Checkout the subdirectory [examples](examples/), for comprehensive examples
 
 ### Protein only (apo system)
 
@@ -135,23 +139,26 @@ which currently contains two different use-cases.
 
 All outputs are written to a directory named after the ligand (or receptor if no ligand is provided):
 
-```
+```bash
 <system_name>/
 │
+├── <receptor>_fixed.pdb
 ├── <system_name>_solvated.pdb
-├── <system_name>_solvated.prmtop
-├── <system_name>_solvated.rst7
-├── <system_name>_solvated.gro
-├── <system_name>_solvated.top
-├── system.xml
-├── <system_name>_solvated.chk
-└── <receptor>_fixed.pdb
+├── gmx (optional)
+│   ├── <system_name>_solvated.gro
+│   └── <system_name>_solvated.top
+├── amber (optional)
+│   ├── <system_name>_solvated.rst7
+│   └── <system_name>_solvated.prmtop
+└── openmm (optional)
+    ├── <system_name>_solvated.chk
+    └── <system_name>_system.xml
 ```
 
 Logs are written to:
 
 ```
-logs/<system_name>.log
+simprepper_logs/<system_name>.log
 ```
 
 ---
