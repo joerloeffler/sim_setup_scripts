@@ -14,7 +14,8 @@ logging.getLogger("pymbar").setLevel(logging.ERROR)
 
 import numpy as np
 from simprepper.argument_parsing import parser
-from simprepper.utils import select_platform, get_sysname, get_basename, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension, check_initial_box_dimensions, calculate_protein_dimensions
+from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension, check_initial_box_dimensions, calculate_protein_dimensions
+from simprepper.utils import ExportPathManager
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
 
@@ -25,12 +26,36 @@ from openmm import unit as mm_units
 
 # %% CONSTANTS
 #TODO: make LOG_PATH a parsable argument?
-LOG_PATH = 'prot_prep_logs'
-SHOULD_SAVE_SETUP = True
+LOG_PATH = 'simprepper_logs'
+#TODO: Will we ever not want to save the setup?
+SHOULD_SAVE_CONFIG = True
 
 # %% Pairwise distances...
 #NOTE: PAQ: pw_dist is not actually used anywhere in this module!
 #from simprepper.pairwise_distance import pw_dist
+
+# %% Process ligand
+#TODO: Move this function somewhere else. Maybe utils...
+def process_ligand(setup, verbose):
+    '''Some sanity checks,
+    prepare ligand structure, prepare forcefield_gerator
+    '''
+    # Check if a given ligand is in the correct format
+    sanity_check_ligand_extension(setup.lig_fname)
+
+    logging.info(f"Ligand provided: {setup.lig_fname}")
+
+    # will throw a warning, if there are no TERs, but will continue in any case
+    sanity_check_pdb_for_TERs(setup.rec_fname, verbose=verbose)
+
+    ligand = prepare_ligand(lig_sdf=setup.lig_fname, 
+                            allow_undefined_stereo=True)
+
+    ligand_topology, ligand_positions, ligand_template_gen = parametrize_ligand(ligand,
+                                                                                lig_ff=setup.ligand_ff
+                                                                                )
+    return ligand, ligand_template_gen
+
 
 # %% setting up process
 
@@ -55,7 +80,10 @@ else:
     )
     setup = SimSetup.from_args(sys_name, args)
 
-prep_filetree(sys_name, log_path=LOG_PATH)
+export_path_manager = ExportPathManager.from_args(sys_name, args)
+prep_filetree(subdirs=(sys_name, LOG_PATH),
+              subsubdirs=export_path_manager.get_subsubdirectories())
+
 if args.debug:
     print(args)
     print("Log-level: {}".format(args.log_level.upper()))
@@ -115,31 +143,16 @@ def main():
 
     # Optional ligand
     if setup.lig_fname:
-        # Check if a given ligand is in the correct format
-        sanity_check_ligand_extension(setup.lig_fname)
-
-        logging.info(f"Ligand provided: {setup.lig_fname}")
-
-        has_TERS = sanity_check_pdb_for_TERs(setup.rec_fname, verbose=args.verbose)
-        if not has_TERS:
-            warnings.warn("\n".join(["Did not find any >TER< entry in your pdb-file.",
-                                     "This *may* cause problems (depending on how you cap your protein chain).",
-                                     "We recommend to add >TER< entries between all chains, and in particular between receptor and ligand"]),
-                                     UserWarning)
-
-        ligand = prepare_ligand(lig_sdf=setup.lig_fname, 
-                                allow_undefined_stereo=True)
-
-        ligand_topology, ligand_positions, ligand_template_gen = parametrize_ligand(ligand,
-                                                                                    lig_ff=setup.ligand_ff
-                                                                                    )
+        #NOTE: `ligand` is not acually used anywhere anymore
+        ligand, ligand_template_generator = process_ligand(setup, args.verbose)
 
         logging.info("Adding ligand to the modeller...")
-        forcefield.registerTemplateGenerator(ligand_template_gen)
+        forcefield.registerTemplateGenerator(ligand_template_generator)
         
         # if you use the following line: the ligand is added a second time.
         # I will keep this line here, because in alternative preparation pipelines, this is a very useful line...
-        # sys_modeller.add(ligand_topology, ligand_positions)
+        # sys_modeller.add(ligand_topology, ligand_positions)  
+        # # ligand_topology, and ligand_positions ar enot hidden in `process_ligand`
     else:
         logging.info("No ligand provided. Running protein-only setup.")
 
@@ -200,12 +213,12 @@ def main():
     export_all_files(system=system,
                      simulation=simulation,
                      setup=setup,  # contains all kind of information, e.g. `sys_name`
-                     suffix="solvated",
                      modeller=sys_modeller,
-                     forcefield=forcefield,
+                     forcefield_obj=forcefield,
+                     export_path_manager=export_path_manager,
                      )
     
-    if SHOULD_SAVE_SETUP:
+    if SHOULD_SAVE_CONFIG:
         out_fname = os.path.join(LOG_PATH, "simprepper.out.ini")
         logging.info(f"Writing simulation setup to file {out_fname}.")
         setup.to_ini(out_fname, setup.membrane_protein)

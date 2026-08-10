@@ -3,8 +3,10 @@ import os
 import parmed
 import logging
 import argparse
-from pathlib import Path
+import warnings
 
+from pathlib import Path
+from dataclasses import dataclass, field
 from openmmtools.utils import get_fastest_platform
 from openmm import app as mm_apps
 from openmm.app import forcefield
@@ -52,64 +54,81 @@ def get_sysname(args):
     return sys_name, rec_basename
 
 
-def prep_filetree(sys_name, log_path):
-    os.makedirs(sys_name, exist_ok=True)
-    os.makedirs(log_path, exist_ok=True)
+def prep_filetree(subdirs, subsubdirs):
+    # sys_name,logpath = sdirs
+    for sdir in subdirs:
+        os.makedirs(sdir, exist_ok=True)
+    for ssdir in subsubdirs:
+        os.makedirs(ssdir, exist_ok=True)
     return None
 
 
-def save_parmed(parmed_sys, fname_trunc, should_save_amber=True, should_save_gmx=True):
-    # save amber parmameters
+def save_parmed(modeller, setup, forcefield_of_this_system, 
+                final_positions, export_path_manager):
+    # just a reminder:
     # fname_trunc = f"{sys_name}/{sys_name}"
-    if should_save_amber:
-        parmed_sys.save(f"{fname_trunc}_solvated.prmtop", overwrite=True)
-        parmed_sys.save(f"{fname_trunc}_solvated.rst7", overwrite=True,
-                        format="rst7",
-                        )
-    # save gromacs parameters
-    if should_save_gmx:
-        parmed_sys.save(f"{fname_trunc}_solvated.gro", overwrite=True,
-                        format='gro',)
-        parmed_sys.save(f"{fname_trunc}_solvated.top", overwrite=True,
-                        format='gromacs',)
-    return None
 
+    # Rebuild for ParmEd export
+    new_system = forcefield_of_this_system.createSystem(
+                                modeller.topology,
+                                nonbondedMethod=mm_apps.PME,
+                                nonbondedCutoff=setup.nb_cutoff,
+                                removeCMMotion=False,
+                                rigidWater=False,
+                                hydrogenMass=setup.hydrogen_mass,
+                                )
+    parmed_sys = parmed.openmm.load_topology(modeller.getTopology(), 
+                                             new_system, 
+                                             final_positions
+                                             )
+
+    # save amber parmameters
+    if export_path_manager.should_export_amber:
+        parmed_sys.save(export_path_manager.output_fnames["amber"]["prmtop"], 
+                        overwrite=True, format="amber")
+        parmed_sys.save(export_path_manager.output_fnames["amber"]["coord_file"], 
+                        overwrite=True, format="rst7")
+        
+    # save gromacs parameters
+    if export_path_manager.should_export_gmx:
+        #TODO: add gmx subfolder here
+        parmed_sys.save(export_path_manager.output_fnames["gmx"]["gro"], 
+                        overwrite=True, format='gro')
+        
+        parmed_sys.save(export_path_manager.output_fnames["gmx"]["top"], 
+                        overwrite=True, format='gromacs')
+    return None
 
 
 # %%
-def export_all_files(system, simulation, setup, suffix, modeller, forcefield):
+def export_all_files(system, simulation, setup, modeller, forcefield_obj, 
+                     export_path_manager):
     """
     Export solvated coordinates, serialized system, checkpoint, and Amber files.
     """
-    logging.info(f"Exporting files for {suffix}...")
-    final_positions = simulation.context.getState(getPositions=True).getPositions()
+    
+    logging.info(f"Exporting files for {setup.sys_name}, for the following engines:\n{export_path_manager.printout_flags}")
     # most files follow this naming convention:
-    fname_trunc = f"{setup.sys_name}/{setup.sys_name}"
+    fname_trunc = f"{setup.sys_name}"
+
+    # These positions will be used in all output
+    final_positions = simulation.context.getState(getPositions=True).getPositions()
+
     # Save solvated PDB using final positions from context
-    #with open(f"{fname_trunc}_solvated.pdb", "w") as fhandle:
     mm_apps.PDBFile.writeFile(modeller.topology, final_positions, 
-                                f"{fname_trunc}_solvated.pdb", 
-                                keepIds=True)
+                              f"{setup.sys_name}/{fname_trunc}_solvated.pdb", 
+                              keepIds=True)
 
-    # Save serialized system
-    with open(f"{setup.sys_name}/system.xml", "w") as output:
-        output.write(openmm.XmlSerializer.serialize(system))
+    if export_path_manager.should_export_openmm:
+        #TODO: add openmm subfolder here
+        # Save serialized system
+        with open(export_path_manager.output_fnames["openmm"]["xml"], "w") as output:
+            output.write(openmm.XmlSerializer.serialize(system))
 
-    simulation.saveCheckpoint(f"{fname_trunc}_{suffix}.chk")
+        simulation.saveCheckpoint(export_path_manager.output_fnames["openmm"]["chk"])
 
-    # Rebuild for ParmEd export
-    new_system = forcefield.createSystem(
-        modeller.topology,
-        nonbondedMethod=mm_apps.PME,
-        nonbondedCutoff=setup.nb_cutoff,
-        removeCMMotion=False,
-        rigidWater=False,
-        hydrogenMass=setup.hydrogen_mass,
-    )
-    parmed_sys = parmed.openmm.load_topology(
-        modeller.getTopology(), new_system, final_positions
-    )
-    save_parmed(parmed_sys, fname_trunc)
+    save_parmed(modeller, setup, forcefield_obj, 
+                final_positions, export_path_manager)
     return None
 
 
@@ -146,7 +165,13 @@ def sanity_check_pdb_for_TERs(pdb_filename, verbose=False):
     if verbose:            
         print("-" * 50)
         
-    return ter_count > 0
+    has_TERS =  ter_count > 0
+    if not has_TERS:
+            warnings.warn("\n".join(["Did not find any >TER< entry in your pdb-file.",
+                                     "This *may* cause problems (depending on how you cap your protein chain).",
+                                     "We recommend to add >TER< entries between all chains, and in particular between receptor and ligand"]),
+                                     UserWarning)
+    return None
 
 
 def sanity_check_ligand_extension(lig_filename):
@@ -262,3 +287,76 @@ def check_initial_box_dimensions(protein_dimensions, box_vectors):
                 f"OpenMM will and expand the unit cell during membrane/solvent addition. " 
                 f"Make sure to inspect if the final box dimensions are sufficient to accommodate the protein and any added solvent/ions."
             )
+    print(f"Wrote example config to {args.output}")
+
+
+@dataclass
+class ExportPathManager:
+    """
+    Tells the simprepper, which output should be generated:
+    Gromacs? Yes/No; Amber? Yes/No...
+    Small class that care of parsing some arguments, and conveneiently
+    """
+    sys_name             : str         = "DEFAULT_SYS_NAME"
+    should_export_gmx    : bool        = False
+    should_export_amber  : bool        = False
+    should_export_openmm : bool        = False
+    # the subsubdirectories-pathnames will be None by default
+    gmx_ssdir            : Path | None = None
+    amber_ssdir          : Path | None = None
+    openmm_ssdir         : Path | None = None
+    output_fnames        : dict        = field(default_factory=dict)
+
+    printout_flags       : str         = ""
+
+    #TODO: Add another constructor, to be used from jupyter notebooks.
+
+    @classmethod
+    def from_args(cls, 
+                  sys_name: str, args: argparse.Namespace  # argparse arguments
+                  ):
+        """This is a constructor function, to generate an instance of ExportPathManager() from argparse-arguments
+        """
+        props = dict(sys_name             = sys_name,
+                     should_export_gmx    = args.should_export_gmx,
+                     should_export_amber  = args.should_export_amber,
+                     should_export_openmm = args.should_export_openmm
+                     )
+        # if requested, add subsubdirectories:
+        output_filenames = {}
+        printout_flags = []
+        if args.should_export_amber:
+            amber_ssdir = Path(sys_name) / Path("amber")
+            props["amber_ssdir"] = amber_ssdir
+            output_filenames["amber"] = {"prmtop"     : f"{amber_ssdir}/{sys_name}_solvated.prmtop",
+                                         "coord_file" : f"{amber_ssdir}/{sys_name}_solvated.rst7"}
+            printout_flags.append("Amber")
+            
+        if args.should_export_gmx:
+            gmx_ssdir = Path(sys_name) / Path("gmx")
+            props["gmx_ssdir"] = gmx_ssdir
+            output_filenames["gmx"]  = {"top" : f"{gmx_ssdir}/{sys_name}_solvated.top",
+                                        "gro" : f"{gmx_ssdir}/{sys_name}_solvated.gro"}
+            printout_flags.append("Gromacs")
+            
+        if args.should_export_openmm:
+            openmm_ssdir = Path(sys_name) / Path("openmm")
+            props["openmm_ssdir"] = openmm_ssdir
+            output_filenames["openmm"]  = {"xml" : f"{openmm_ssdir}/{sys_name}_system.xml",
+                                           "chk" : f"{openmm_ssdir}/{sys_name}_solvated.chk"}
+            printout_flags.append("OpenMM")
+
+        props["output_fnames"] = output_filenames
+        props["printout_flags"] = ", ".join(printout_flags)
+        return cls(**props)
+    
+    
+    def get_subsubdirectories(self):
+        ssdirs = []
+        if self.should_export_gmx:
+            ssdirs.append(self.gmx_ssdir)
+        if self.should_export_amber:
+            ssdirs.append(self.amber_ssdir)
+        if self.should_export_openmm:
+            ssdirs.append(self.openmm_ssdir)
+        return ssdirs
