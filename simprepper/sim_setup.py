@@ -18,7 +18,7 @@ CONFIG_SECTIONS = {
     "system": [
         SimSetupField("membrane_protein", None, False, bool),
     ],
-    "membrane": [     # membrane parameters present only if membrane=True
+    "membrane_box": [     # membrane parameters present only if membrane=True
         SimSetupField("lipid_type", None, "POPC", str),
         SimSetupField("membrane_center_z", None, 0.0, float),
         SimSetupField("minimum_padding", mm_units.nanometer, 1.0, float),
@@ -31,7 +31,7 @@ CONFIG_SECTIONS = {
         SimSetupField("ionic_strength", mm_units.molar, 0.15, float),
         SimSetupField("ph", None, 7.4, float),
     ],
-    "simulation box": [
+    "water_box": [
         SimSetupField("box_shape", None, "cube", str),
         SimSetupField("padding", mm_units.nanometer, 3.0, float),
     ],
@@ -188,13 +188,13 @@ class SimSetup:
         # Ideally, we should have a more elegant way to handle this, but for now, this will suffice.
         if membrane_flag:
             # If membrane_flag is True, include the membrane section
-            sections_to_include = ["system", "membrane", "simulation", "forcefields"]
+            sections_to_include = ["system", "membrane_box", "simulation", "forcefields"]
             config["system"]["membrane_protein"] = "True"
             # NOTE: The forcefield section will soon change so this fragment will also need to be adapted.
             config["forcefields"]["lipid_ff"] = "amber14/lipid17.xml" 
         else:
             # If membrane_flag is False, exclude the membrane section
-            sections_to_include = ["system", "simulation", "simulation box", "forcefields"]
+            sections_to_include = ["system", "simulation", "water_box", "forcefields"]
 
         # Create a filtered config & filter sections
         filtered_config = ConfigParser()
