@@ -287,7 +287,9 @@ def check_initial_box_dimensions(protein_dimensions, box_vectors):
                 f"OpenMM will and expand the unit cell during membrane/solvent addition. " 
                 f"Make sure to inspect if the final box dimensions are sufficient to accommodate the protein and any added solvent/ions."
             )
-    print(f"Wrote example config to {args.output}")
+    # NOTE: I think the latter is a copy-paste error...?
+    # print(f"Wrote example config to {args.output}")
+    return None
 
 
 @dataclass
