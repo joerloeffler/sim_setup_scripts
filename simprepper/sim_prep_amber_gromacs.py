@@ -18,6 +18,7 @@ from simprepper.utils import select_platform, get_sysname, prep_filetree, export
 from simprepper.utils import ExportPathManager
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
+from simprepper.setupchecker import SetupChecker
 
 # OpenMM imports
 import openmm
@@ -80,6 +81,7 @@ else:
     )
     setup = SimSetup.from_args(sys_name, args)
 
+
 export_path_manager = ExportPathManager.from_args(sys_name, args)
 prep_filetree(subdirs=(sys_name, LOG_PATH),
               subsubdirs=export_path_manager.get_subsubdirectories())
@@ -98,6 +100,11 @@ logging.basicConfig(
     ],
     force=True  # NOTE: paq: otherwise doesn't print to stdout on all systems...
 )
+
+print(setup.ionic_strength._value)
+setup_checker = SetupChecker(setup, logging, verbose=True)
+setup_checker.run_all_checks() 
+setup_checker.get_report()
 
 
 # %% define main()
@@ -136,11 +143,6 @@ def main():
         )
         logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
     
-
-    # Make an OpenMM Modeller object with the protein
-    sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 
-                                    pdb_fixed.positions)
-
     # Optional ligand
     if setup.lig_fname:
         #NOTE: `ligand` is not acually used anywhere anymore
@@ -156,11 +158,17 @@ def main():
     else:
         logging.info("No ligand provided. Running protein-only setup.")
 
+
+    # Make an OpenMM Modeller object with the protein
+    sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 
+                                    pdb_fixed.positions)
     # Check the protein dimensions against initial periodic box vectors
     positions = sys_modeller.positions.value_in_unit(mm_units.nanometers)
     pos_array = np.array(positions)
     protein_dims = calculate_protein_dimensions(pos_array)
     initial_box_vectors = sys_modeller.topology.getPeriodicBoxVectors()
+    #TODO: incorporate this in the SetupChecker?
+    #Maybe this is more of a problem for something like a ModelChecker?
     check_initial_box_dimensions(protein_dims, initial_box_vectors)
 
     if setup.membrane_protein:
