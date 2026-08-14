@@ -101,7 +101,6 @@ logging.basicConfig(
     force=True  # NOTE: paq: otherwise doesn't print to stdout on all systems...
 )
 
-print(setup.ionic_strength._value)
 setup_checker = SetupChecker(setup, logging, verbose=True)
 setup_checker.run_all_checks() 
 setup_checker.get_report()
