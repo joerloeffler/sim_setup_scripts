@@ -20,8 +20,8 @@ SimSetupField = namedtuple("SimSetupField", ["name", "unit", "default", "data_ty
 # %% Template class for Config-sections
 @dataclass
 class AbstractConfigSection:
+    #NOTE: Probably, we do not need both
     section_name         : str   = ""
-    key_in_config        : str   = ""
     default_fields       : dict  = field(default_factory=dict)
     fields               : dict  = field(default_factory=dict)
 
@@ -36,7 +36,6 @@ class AbstractConfigSection:
             }
         
         return cls(section_name=cls.section_name,
-                   key_in_config=cls.key_in_config,
                    fields=initial_fields)
 
     @classmethod
@@ -59,25 +58,29 @@ class AbstractConfigSection:
         initial_fields.update(filtered_kwargs)
     
         return cls(section_name=cls.section_name,
-                   key_in_config=cls.key_in_config,
                    fields=initial_fields)
+
+@dataclass
+class SystemSection(AbstractConfigSection):
+    section_name       = "system"
+    # class-level definition of the default values
+    _list_of_defaults  = [SimSetupField("membrane_protein", None, False, bool)
+                          ]
+    default_fields     = {f.name: f for f in _list_of_defaults}
 
 
 @dataclass
-class BoxSection(AbstractConfigSection):
-    name               = "simulation_box"
-    key_in_config      = "simulation box"
+class WaterBoxSection(AbstractConfigSection):
+    section_name       = "water_box"
     # class-level definition of the default values
     _list_of_defaults  = [SimSetupField("box_shape", None, "cube", str),
                           SimSetupField("padding", mm_units.nanometer, 3.0, float),
                           ]
     default_fields     = {f.name: f for f in _list_of_defaults}
 
-
 @dataclass
-class SimSection(AbstractConfigSection):
-    name               = "simulation"
-    key_in_config      = "simulation"
+class SimulationSection(AbstractConfigSection):
+    section_name       = "simulation"
     # class-level definition of the default values
     _list_of_defaults  = [
         SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
@@ -92,8 +95,7 @@ class SimSection(AbstractConfigSection):
 
 @dataclass
 class ForceFieldsSectionAmber(AbstractConfigSection):
-    name               = "forcefields"
-    key_in_config      = "forcefields"
+    section_name       = "forcefields"
     # class-level definition of the default values
     _list_of_defaults  = [
         SimSetupField("ligand_ff", None, "GAFF", str),
@@ -104,9 +106,97 @@ class ForceFieldsSectionAmber(AbstractConfigSection):
     ]
     default_fields     = {f.name: f for f in _list_of_defaults}
 
+
 # This would be the new version, using the Section class:
-_CONFIG_SECTIONS = [BoxSection, SimSection, ForceFieldsSectionAmber]
-_CONFIG_SECTIONS = {section.name:section for section in _CONFIG_SECTIONS}
+_CONFIG_SECTIONS_vanilla = [SystemSection.from_kwargs(membrane_protein=False),
+                            WaterBoxSection, 
+                            SimulationSection, 
+                            ForceFieldsSectionAmber]
+_CONFIG_SECTIONS_vanilla = {section.section_name:section for section in _CONFIG_SECTIONS_vanilla}
+#TODO: implement _CONFIG_SECTIONS_membrane!
+
+
+SECTION_LABELS_vanilla     = list(_CONFIG_SECTIONS_vanilla.keys())
+#SECTION_LABELS_vanilla     = ["system", "water_box",    "simulation", "forcefields"]
+MEMBRANE_PROTEIN_SECTIONS  = ["system", "membrane_box", "simulation", "forcefields"]
+
+
+# %% DEVELOPMENT: This is supposed to substitute SimSetup (still defined below)
+@dataclass
+class SimSetup_fromAbstractSections:
+    """For developers: 
+    if you want to add a property to this class:
+    1. Add it here, to be a field that can be initialized
+    2. make sure that it is passed on, in the constructor class `.from_args()`
+
+    Note: you can define default values here, but they can be overwritten during construction (by other default values)
+    So defining default values is not actually necessary. 
+    HOWEVER, if you do not define a default value, it will be considered a non-default argument, which cannot follow a default argument...
+    """
+    sys_name        : str         = "DEFAULT_SYS_NAME"
+    rec_fname       : str         = "DEFAULT_REC_NAME"
+    lig_fname       : str | None  = None
+    sections        : dict        = field(default_factory=dict)
+    fields          : dict        = field(default_factory=dict)
+
+    @classmethod
+    def from_defaults(cls, membrane_flag=False):
+        """
+        This is a constructor function, to generate an instance of SimSetup() from the defaults defined above.
+        """
+
+        # Set the receptor and ligand file names from the command line arguments
+        props = dict(
+            sys_name=cls.sys_name,
+            rec_fname=cls.rec_fname,
+            lig_fname=cls.lig_fname,
+        )
+        
+        sections=_CONFIG_SECTIONS_vanilla
+        if membrane_flag:
+            #TODO:
+            # sections=_CONFIG_SECTIONS_membrane
+            pass
+
+        # What happens below? We initialize the sections from the default values as defined in the section classes above
+        sections_out = {}
+        for section_key, section in sections.items():
+            default_section = section.from_defaults()
+            sections_out[section_key] = default_section
+        return cls(**props, 
+                   sections=sections_out)
+
+    def __init__(self, sys_name, rec_fname, lig_fname, sections):
+        self.sys_name     = sys_name
+        self.rec_fname    = rec_fname
+        self.lig_fname    = lig_fname
+        self.sections     = sections
+
+        # What happens below? We flatten all fields to a single dictionary and remove the hierarchical layer of the sections
+        fields ={}
+        # for section_key,section in sections.items():  # we do not actually care about the keys here...
+        for section in sections.values():
+            for field_key,field in section.fields.items():
+                fields[field_key] = field
+
+        self.fields       = fields
+        return None
+
+    @classmethod
+    def from_ini(cls, sys_name, args):
+        """
+        This is a constructor function, to generate an instance of SimSetup() from an ini file.
+        """
+        pass
+
+    def to_ini(self, out_fname, membrane_flag=False):
+        """
+        Write the simulation setup to an ini file. This can be used to reload the same setup later, or to use it as a template for other setups.
+        """
+        pass
+
+
+# <---- DEVELOP
 
 # this is the original version (until AUG/2026)
 CONFIG_SECTIONS = {
