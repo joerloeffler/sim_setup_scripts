@@ -1,13 +1,7 @@
-import logging
 from openmm import unit as mm_units
 
 from simprepper.sim_setup import SimSetup
-
-# Maybe this function should be somewhere else...
-def quit_with_error(msg="Aborting, because of erroneous setup for preparation. Please fine the report above."):
-    logging.error(msg)
-    raise RuntimeError
-    
+from simprepper.utils import quit_with_error    
 
 # NOTE: This class is the important feature here
 class CheckItem:
@@ -110,11 +104,12 @@ LIST_OF_CHECKS = [CheckItem(name="Mutually exclusive fields: membrane_protein an
 # This is the workhorse here, but in the best base, this never needs to be touched
 class SetupChecker:
     sim_setup          : SimSetup | None = None
-    list_of_checks     : list            = []
+    list_of_checks     : list[CheckItem] = []
+    #TODO: instead of verbose flag, use logging!
     verbose            : bool            = False
     _results_of_checks : list            = []
     _has_finished      : bool            = False
-    logging = None
+    logging                              = None
 
     def __init__(self, 
                  sim_setup, 
