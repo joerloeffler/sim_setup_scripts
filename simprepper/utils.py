@@ -14,6 +14,13 @@ from openmm import unit as mm_units
 from simprepper.sim_setup import SimSetup
 
 
+def quit_with_error(
+        msg="Aborting, because of erroneous setup for preparation. Please find the report above."
+        ):
+    logging.error(msg)
+    raise RuntimeError
+
+
 def select_platform(platform_name=None):
     """
     Select OpenMM platform and set useful defaults.

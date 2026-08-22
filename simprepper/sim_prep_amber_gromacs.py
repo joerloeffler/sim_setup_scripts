@@ -18,7 +18,7 @@ from simprepper.utils import select_platform, get_sysname, prep_filetree, export
 from simprepper.utils import ExportPathManager
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
-from simprepper.setupchecker import SetupChecker
+from simprepper.setup_checker import SetupChecker
 
 # OpenMM imports
 import openmm
@@ -101,6 +101,7 @@ logging.basicConfig(
     force=True  # NOTE: paq: otherwise doesn't print to stdout on all systems...
 )
 
+#NOTE: We might want to remove the verbose=True flag here, in the long run.
 setup_checker = SetupChecker(setup, logging, verbose=True)
 setup_checker.run_all_checks() 
 setup_checker.get_report()
