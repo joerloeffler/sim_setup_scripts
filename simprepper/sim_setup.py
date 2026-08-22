@@ -15,12 +15,30 @@ os.environ["JAX_ENABLE_X64"] = "True" # get rid of annoying JAX warning
 # NOTE: At the moment, when adding a new parameter, you need to add it to the CONFIG_SECTIONS dictionary, 
 # and also add it to the SimSetup dataclass. Ideally, we would like to have a single source of truth for 
 # the parameters, but this can be solved later.
-SimSetupField = namedtuple("SimSetupField", ["name", "unit", "default", "data_type"])
+SimSetupField = namedtuple("SimSetupField", ["name", 
+                                             "unit", 
+                                             "default_value", # this will always be passed on
+                                             "given_value", # this will be None, if not initialized differently
+                                             "data_type"])
+
+
+def initialize_field_from_kwarg(default_field_behind_key, val):
+    if type(val) != default_field_behind_key.data_type:
+        #TODO: actually handle this type comparison...
+        print("Oh Boy! This should have a different type!")
+        
+    # initialize the field properly, with units and all that, not just the value:
+    field_from_user_input = SimSetupField(default_field_behind_key.name,
+                                          default_field_behind_key.unit,
+                                          default_field_behind_key.default_value, 
+                                          val,
+                                          default_field_behind_key.data_type)
+    return field_from_user_input
+
 
 # %% Template class for Config-sections
 @dataclass
 class AbstractConfigSection:
-    #NOTE: Probably, we do not need both
     section_name         : str   = ""
     default_fields       : dict  = field(default_factory=dict)
     fields               : dict  = field(default_factory=dict)
@@ -53,7 +71,8 @@ class AbstractConfigSection:
                 print("Ingnoring unkown field {}".format(key))  # This should never happen, from ini-files,
                 # because in ini files, we already sanity check the fields before initialization.
                 continue
-            filtered_kwargs[key] = val
+            default_field_behind_key = cls.default_fields[key]
+            filtered_kwargs[key] = initialize_field_from_kwarg(default_field_behind_key,val)
         # Update default values with any explicit kwargs that have been given
         initial_fields.update(filtered_kwargs)
     
@@ -64,7 +83,7 @@ class AbstractConfigSection:
 class SystemSection(AbstractConfigSection):
     section_name       = "system"
     # class-level definition of the default values
-    _list_of_defaults  = [SimSetupField("membrane_protein", None, False, bool)
+    _list_of_defaults  = [SimSetupField("membrane_protein", None, False, None, bool)
                           ]
     default_fields     = {f.name: f for f in _list_of_defaults}
 
@@ -73,8 +92,8 @@ class SystemSection(AbstractConfigSection):
 class WaterBoxSection(AbstractConfigSection):
     section_name       = "water_box"
     # class-level definition of the default values
-    _list_of_defaults  = [SimSetupField("box_shape", None, "cube", str),
-                          SimSetupField("padding", mm_units.nanometer, 3.0, float),
+    _list_of_defaults  = [SimSetupField("box_shape", None, "cube", None, str),
+                          SimSetupField("padding", mm_units.nanometer, 3.0, None, float),
                           ]
     default_fields     = {f.name: f for f in _list_of_defaults}
 
@@ -83,12 +102,12 @@ class SimulationSection(AbstractConfigSection):
     section_name       = "simulation"
     # class-level definition of the default values
     _list_of_defaults  = [
-        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
-        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, float),
-        SimSetupField("timestep", mm_units.picoseconds, 0.004, float),
-        SimSetupField("temperature", mm_units.kelvin, 300.0, float),
-        SimSetupField("ionic_strength", mm_units.molar, 0.15, float),
-        SimSetupField("ph", None, 7.4, float),
+        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, None, float),
+        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, None, float),
+        SimSetupField("timestep", mm_units.picoseconds, 0.004, None, float),
+        SimSetupField("temperature", mm_units.kelvin, 300.0, None, float),
+        SimSetupField("ionic_strength", mm_units.molar, 0.15, None, float),
+        SimSetupField("ph", None, 7.4, None, float),
     ]
     default_fields    = {f.name: f for f in _list_of_defaults}
 
@@ -98,11 +117,11 @@ class ForceFieldsSectionAmber(AbstractConfigSection):
     section_name       = "forcefields"
     # class-level definition of the default values
     _list_of_defaults  = [
-        SimSetupField("ligand_ff", None, "GAFF", str),
-        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", str),
-        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", str),
-        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", str),
-        SimSetupField("lipid_ff", None, "amber14/lipid17.xml", str),
+        SimSetupField("ligand_ff", None, "GAFF", None, str),
+        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", None, str),
+        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", None, str),
+        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", None, str),
+        SimSetupField("lipid_ff", None, "amber14/lipid17.xml", None, str),
     ]
     default_fields     = {f.name: f for f in _list_of_defaults}
 
@@ -114,11 +133,19 @@ _CONFIG_SECTIONS_vanilla = [SystemSection.from_kwargs(membrane_protein=False),
                             ForceFieldsSectionAmber]
 _CONFIG_SECTIONS_vanilla = {section.section_name:section for section in _CONFIG_SECTIONS_vanilla}
 #TODO: implement _CONFIG_SECTIONS_membrane!
+_CONFIG_SECTIONS_membrane = [SystemSection.from_kwargs(membrane_protein=False),
+                            #MembraneBoxSection,  # does not exist, yet
+                            SimulationSection, 
+                            ForceFieldsSectionAmber]
+_CONFIG_SECTIONS_membrane = {section.section_name:section for section in _CONFIG_SECTIONS_membrane}
 
 
 SECTION_LABELS_vanilla     = list(_CONFIG_SECTIONS_vanilla.keys())
 #SECTION_LABELS_vanilla     = ["system", "water_box",    "simulation", "forcefields"]
-MEMBRANE_PROTEIN_SECTIONS  = ["system", "membrane_box", "simulation", "forcefields"]
+
+#MEMBRANE_PROTEIN_SECTIONS  = ["system", "membrane_box", "simulation", "forcefields"]
+SECTION_LABELS_membrane  = ["system", "membrane_box", "simulation", "forcefields"]
+# SECTION_LABELS_membrane     = list(_CONFIG_SECTIONS_membrane.keys())
 
 
 # %% DEVELOPMENT: This is supposed to substitute SimSetup (still defined below)
@@ -154,9 +181,7 @@ class SimSetup_fromAbstractSections:
         
         sections=_CONFIG_SECTIONS_vanilla
         if membrane_flag:
-            #TODO:
-            # sections=_CONFIG_SECTIONS_membrane
-            pass
+            sections=_CONFIG_SECTIONS_membrane
 
         # What happens below? We initialize the sections from the default values as defined in the section classes above
         sections_out = {}
@@ -164,7 +189,7 @@ class SimSetup_fromAbstractSections:
             default_section = section.from_defaults()
             sections_out[section_key] = default_section
         return cls(**props, 
-                   sections=sections_out)
+                   sections=sections_out)  # call __init__ 
 
     def __init__(self, sys_name, rec_fname, lig_fname, sections):
         self.sys_name     = sys_name
@@ -187,12 +212,14 @@ class SimSetup_fromAbstractSections:
         """
         This is a constructor function, to generate an instance of SimSetup() from an ini file.
         """
+        #TODO: implement read values to given, values, otherwise use default values
         pass
 
     def to_ini(self, out_fname, membrane_flag=False):
         """
         Write the simulation setup to an ini file. This can be used to reload the same setup later, or to use it as a template for other setups.
         """
+        #TODO: implement, use given_values if not None, otherwise default values
         pass
 
 
@@ -201,31 +228,31 @@ class SimSetup_fromAbstractSections:
 # this is the original version (until AUG/2026)
 CONFIG_SECTIONS = {
     "system": [
-        SimSetupField("membrane_protein", None, False, bool),
+        SimSetupField("membrane_protein", None, False, None, bool),
     ],
     "membrane_box": [     # membrane parameters present only if membrane=True
-        SimSetupField("lipid_type", None, "POPC", str),
-        SimSetupField("membrane_center_z", None, 0.0, float),
-        SimSetupField("minimum_padding", mm_units.nanometer, 1.0, float),
+        SimSetupField("lipid_type", None, "POPC", None, str),
+        SimSetupField("membrane_center_z", None, 0.0, None, float),
+        SimSetupField("minimum_padding", mm_units.nanometer, 1.0, None, float),
     ],
     "simulation": [
-        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
-        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, float),
-        SimSetupField("timestep", mm_units.picoseconds, 0.004, float),
-        SimSetupField("temperature", mm_units.kelvin, 300.0, float),
-        SimSetupField("ionic_strength", mm_units.molar, 0.15, float),
-        SimSetupField("ph", None, 7.4, float),
+        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, None, float),
+        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, None, float),
+        SimSetupField("timestep", mm_units.picoseconds, 0.004, None, float),
+        SimSetupField("temperature", mm_units.kelvin, 300.0, None, float),
+        SimSetupField("ionic_strength", mm_units.molar, 0.15, None, float),
+        SimSetupField("ph", None, 7.4, None, float),
     ],
     "water_box": [
-        SimSetupField("box_shape", None, "cube", str),
-        SimSetupField("padding", mm_units.nanometer, 3.0, float),
+        SimSetupField("box_shape", None, "cube", None, str),
+        SimSetupField("padding", mm_units.nanometer, 3.0, None, float),
     ],
     "forcefields": [
-        SimSetupField("ligand_ff", None, "GAFF", str),
-        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", str),
-        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", str),
-        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", str),
-        SimSetupField("lipid_ff", None, None, str),
+        SimSetupField("ligand_ff", None, "GAFF", None, str),
+        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", None, str),
+        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", None, str),
+        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", None, str),
+        SimSetupField("lipid_ff", None, None, None, str),
     ]
 }
 
@@ -297,7 +324,7 @@ class SimSetup:
         This is a constructor function, to generate an instance of SimSetup() from an ini file.
         """
         # Check if the ini file exists
-        sanity_check_ini_file_if_exists(args.ini, CONFIG_SECTIONS)
+        sanity_check_ini_file_if_exists(args.ini)
 
         # Read the config
         config = ConfigParser(inline_comment_prefixes=("#",))
@@ -393,12 +420,12 @@ class SimSetup:
 
 
 # NOTE: this function is not actually used anywhere in the code anymore
-def get_longest_key(keys):
-    longest_string = max([len(key) for key in keys])
-    return longest_string+1
+#def get_longest_key(keys):
+#    longest_string = max([len(key) for key in keys])
+#    return longest_string+1
 
 
-def sanity_check_ini_file_if_exists(ini_filename, field_sections):
+def sanity_check_ini_file_if_exists(ini_filename):
     """
     Checks if the ini file exists. Raises a FileNotFoundError if the file does not exist.
     """
@@ -474,6 +501,6 @@ def get_field_default(field_name, field_sections):
         for field in fields:
             if field.name == field_name:
                 if field.unit is not None:
-                    return field.default * field.unit
-                return field.default
+                    return field.default_value * field.unit
+                return field.default_value
     raise KeyError(f"Field '{field_name}' not found.")

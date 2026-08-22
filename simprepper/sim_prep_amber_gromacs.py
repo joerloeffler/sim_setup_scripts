@@ -146,14 +146,16 @@ def main():
     
     # 1. Instantiate default values directly via from_defaults()
     box = WaterBoxSection.from_defaults()
-    print(box)
+    print(box,"\n")
+    print(box.fields["padding"],"\n\n")
     #print(box.section_name)  # Output: simulation_box
     #print(box.fields)        # Output: {'box_shape': 'cube', 'padding': 3.0}
 
     # 2. Override specific fields on creation
     # TODO: from kwargs does not completely initialize the field...
     custom_box = WaterBoxSection.from_kwargs(padding=5.0)
-    print(custom_box)
+    print(custom_box,"\n")
+    print(custom_box.fields["padding"],"\n\n")
     #print(custom_box.fields["box_shape"]) # Output: {'box_shape': 'cube', 'padding': 5.0}
     #print(custom_box.fields["padding"]) # Output: {'box_shape': 'cube', 'padding': 5.0}
 
@@ -165,7 +167,8 @@ def main():
     print("\nall fields:\n ", temp_sim_setup.fields.keys())
     print("from these sections:\n ", temp_sim_setup.sections.keys())
     print("Quitting debugging run...")
-    quit()
+    if args.debug:
+        quit()
 
     # Optional ligand
     if setup.lig_fname:
