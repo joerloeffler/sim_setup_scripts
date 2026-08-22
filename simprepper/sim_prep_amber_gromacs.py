@@ -17,12 +17,9 @@ from simprepper.argument_parsing import parser
 from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension, check_initial_box_dimensions, calculate_protein_dimensions
 from simprepper.utils import ExportPathManager
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
-<<<<<<< HEAD
 from simprepper.sim_setup import SimSetup
+from simprepper.sim_setup import WaterBoxSection, SimSetup_fromAbstractSections
 from simprepper.setup_checker import SetupChecker
-=======
-from simprepper.sim_setup import SimSetup, WaterBoxSection, SimSetup_fromAbstractSections
->>>>>>> continue prototype.
 
 # OpenMM imports
 import openmm
@@ -146,12 +143,7 @@ def main():
             setup.lipid_ff,
         )
         logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
-<<<<<<< HEAD
     
-=======
-
-    # DEBUG---->
->>>>>>> continue prototype.
     # 1. Instantiate default values directly via from_defaults()
     box = WaterBoxSection.from_defaults()
     print(box)
@@ -174,15 +166,6 @@ def main():
     print("from these sections:\n ", temp_sim_setup.sections.keys())
     print("Quitting debugging run...")
     quit()
-<<<<<<< HEAD
-    logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
-=======
-    # <---- DEBUG
->>>>>>> continue prototype.
-
-    # Make an OpenMM Modeller object with the protein
-    sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 
-                                    pdb_fixed.positions)
 
     # Optional ligand
     if setup.lig_fname:
