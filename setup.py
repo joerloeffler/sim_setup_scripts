@@ -12,7 +12,7 @@ setup(
             # This creates a command called 'run-my-tool'
             # format: 'command_name = package.module:function'
             'simprepper = simprepper.sim_prep_amber_gromacs:main',
-            'simprepper-example-config = simprepper.utils:write_example_ini',
+            'simprepper-example-config = simprepper.sim_setup:write_example_ini',
             'simprepper-forcefields = simprepper.utils:find_forcefields',
         ],
     },

@@ -2,129 +2,22 @@ from openmm import unit as mm_units
 from openmm.unit.quantity import Quantity as mm_quantity
 from openff.units.openmm import openmm_unit_to_string
 from dataclasses import dataclass, field, asdict
-from collections import namedtuple
 from configparser import ConfigParser
 import argparse
-# import warnings  # not used here
+import warnings
 import os
+from simprepper.utils.utils import quit_with_error
+from simprepper.utils.config_utils import SimSetupField, SystemSection, WaterBoxSection, MembraneBoxSection, SimulationSection, ForceFieldsSectionAmber
+from simprepper.utils.config_utils import sanity_check_ini_file_if_exists
 
 os.environ["JAX_ENABLE_X64"] = "True" # get rid of annoying JAX warning
 
 # %% global constants
-# Sections for the config file
+
+
 # NOTE: At the moment, when adding a new parameter, you need to add it to the CONFIG_SECTIONS dictionary, 
 # and also add it to the SimSetup dataclass. Ideally, we would like to have a single source of truth for 
 # the parameters, but this can be solved later.
-SimSetupField = namedtuple("SimSetupField", ["name", 
-                                             "unit", 
-                                             "default_value", # this will always be passed on
-                                             "given_value", # this will be None, if not initialized differently
-                                             "data_type"])
-
-
-def initialize_field_from_kwarg(default_field_behind_key, val):
-    if type(val) != default_field_behind_key.data_type:
-        #TODO: actually handle this type comparison...
-        print("Oh Boy! This should have a different type!")
-        
-    # initialize the field properly, with units and all that, not just the value:
-    field_from_user_input = SimSetupField(default_field_behind_key.name,
-                                          default_field_behind_key.unit,
-                                          default_field_behind_key.default_value, 
-                                          val,
-                                          default_field_behind_key.data_type)
-    return field_from_user_input
-
-
-# %% Template class for Config-sections
-@dataclass
-class AbstractConfigSection:
-    section_name         : str   = ""
-    default_fields       : dict  = field(default_factory=dict)
-    fields               : dict  = field(default_factory=dict)
-
-    def __init__(self, input_fields):
-        self.fields = input_fields
-
-    @classmethod
-    def from_defaults(cls):
-        """Constructs an instance using the class's default_fields dict."""
-        initial_fields = {
-            name: setup_field  for name, setup_field in cls.default_fields.items()
-            }
-        
-        return cls(section_name=cls.section_name,
-                   fields=initial_fields)
-
-    @classmethod
-    def from_kwargs(cls, **kwargs):
-        """Constructs an instance using input arguments. 
-        For any field that is missing, use default instead..."""
-        initial_fields = {
-                    name: setup_field  for name, setup_field in cls.default_fields.items()
-                    }
-        # check the kwargs, if they exists in the default definition. 
-        # Otherwise arbitrary properties could be added
-        filtered_kwargs = {}
-        for key,val in kwargs.items():
-            if key not in cls.default_fields.keys():
-                print("Ingnoring unkown field {}".format(key))  # This should never happen, from ini-files,
-                # because in ini files, we already sanity check the fields before initialization.
-                continue
-            default_field_behind_key = cls.default_fields[key]
-            filtered_kwargs[key] = initialize_field_from_kwarg(default_field_behind_key,val)
-        # Update default values with any explicit kwargs that have been given
-        initial_fields.update(filtered_kwargs)
-    
-        return cls(section_name=cls.section_name,
-                   fields=initial_fields)
-
-@dataclass
-class SystemSection(AbstractConfigSection):
-    section_name       = "system"
-    # class-level definition of the default values
-    _list_of_defaults  = [SimSetupField("membrane_protein", None, False, None, bool)
-                          ]
-    default_fields     = {f.name: f for f in _list_of_defaults}
-
-
-@dataclass
-class WaterBoxSection(AbstractConfigSection):
-    section_name       = "water_box"
-    # class-level definition of the default values
-    _list_of_defaults  = [SimSetupField("box_shape", None, "cube", None, str),
-                          SimSetupField("padding", mm_units.nanometer, 3.0, None, float),
-                          ]
-    default_fields     = {f.name: f for f in _list_of_defaults}
-
-@dataclass
-class SimulationSection(AbstractConfigSection):
-    section_name       = "simulation"
-    # class-level definition of the default values
-    _list_of_defaults  = [
-        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, None, float),
-        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, None, float),
-        SimSetupField("timestep", mm_units.picoseconds, 0.004, None, float),
-        SimSetupField("temperature", mm_units.kelvin, 300.0, None, float),
-        SimSetupField("ionic_strength", mm_units.molar, 0.15, None, float),
-        SimSetupField("ph", None, 7.4, None, float),
-    ]
-    default_fields    = {f.name: f for f in _list_of_defaults}
-
-
-@dataclass
-class ForceFieldsSectionAmber(AbstractConfigSection):
-    section_name       = "forcefields"
-    # class-level definition of the default values
-    _list_of_defaults  = [
-        SimSetupField("ligand_ff", None, "GAFF", None, str),
-        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", None, str),
-        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", None, str),
-        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", None, str),
-        SimSetupField("lipid_ff", None, "amber14/lipid17.xml", None, str),
-    ]
-    default_fields     = {f.name: f for f in _list_of_defaults}
-
 
 # This would be the new version, using the Section class:
 _CONFIG_SECTIONS_vanilla = [SystemSection.from_kwargs(membrane_protein=False),
@@ -132,20 +25,17 @@ _CONFIG_SECTIONS_vanilla = [SystemSection.from_kwargs(membrane_protein=False),
                             SimulationSection, 
                             ForceFieldsSectionAmber]
 _CONFIG_SECTIONS_vanilla = {section.section_name:section for section in _CONFIG_SECTIONS_vanilla}
-#TODO: implement _CONFIG_SECTIONS_membrane!
+SECTION_LABELS_vanilla   = list(_CONFIG_SECTIONS_vanilla.keys())
+#                        = ["system", "water_box",    "simulation", "forcefields"]
+
+
 _CONFIG_SECTIONS_membrane = [SystemSection.from_kwargs(membrane_protein=False),
-                            #MembraneBoxSection,  # does not exist, yet
+                            MembraneBoxSection,  # does not exist, yet
                             SimulationSection, 
                             ForceFieldsSectionAmber]
 _CONFIG_SECTIONS_membrane = {section.section_name:section for section in _CONFIG_SECTIONS_membrane}
-
-
-SECTION_LABELS_vanilla     = list(_CONFIG_SECTIONS_vanilla.keys())
-#SECTION_LABELS_vanilla     = ["system", "water_box",    "simulation", "forcefields"]
-
-#MEMBRANE_PROTEIN_SECTIONS  = ["system", "membrane_box", "simulation", "forcefields"]
-SECTION_LABELS_membrane  = ["system", "membrane_box", "simulation", "forcefields"]
-# SECTION_LABELS_membrane     = list(_CONFIG_SECTIONS_membrane.keys())
+SECTION_LABELS_membrane   = list(_CONFIG_SECTIONS_membrane.keys())
+#                         = ["system", "membrane_box", "simulation", "forcefields"]
 
 
 # %% DEVELOPMENT: This is supposed to substitute SimSetup (still defined below)
@@ -165,6 +55,17 @@ class SimSetup_fromAbstractSections:
     lig_fname       : str | None  = None
     sections        : dict        = field(default_factory=dict)
     fields          : dict        = field(default_factory=dict)
+
+    @classmethod
+    def from_args(cls,
+                    sys_name: str,
+                    args: argparse.Namespace  # argparse arguments
+                    ) -> None:
+        """This is a constructor function, to generate an instance of SimSetup() from args
+        """
+        warnings.warn("SimSetup.from_args() is deprecated!", DeprecationWarning)
+        quit_with_error("SimSetup.from_args() is deprecated!")
+        return None
 
     @classmethod
     def from_defaults(cls, membrane_flag=False):
@@ -219,8 +120,44 @@ class SimSetup_fromAbstractSections:
         """
         Write the simulation setup to an ini file. This can be used to reload the same setup later, or to use it as a template for other setups.
         """
-        #TODO: implement, use given_values if not None, otherwise default values
-        pass
+        config = ConfigParser()
+        for section_key, section in self.sections.items():
+            # retrieve the SimSetupField object for the current key
+            config[section_key] = {}
+            for field_key, field in section.fields.items():
+                # add a comment with the unit string if the field has a unit
+                value = field.given_value or field.default_value
+                print(field_key, value)
+                if field.unit is not None:
+                    unit_str = openmm_unit_to_string(field.unit)
+                    config[section_key][field_key] = f"{value}  # {unit_str}"
+                else:
+                    config[section_key][field_key] = f"{value} "
+
+        # NOTE: This is a temporary solution to handle the membrane_flag, I'm not fully content with this solution. 
+        # Ideally, we should have a more elegant way to handle this, but for now, this will suffice.
+        filtered_config = get_filtered_config(config, membrane_flag)
+
+        with open(out_fname, "w") as f:
+            filtered_config.write(f)
+        return None
+
+
+def get_filtered_config(config, membrane_flag):
+    sections_to_include = SECTION_LABELS_vanilla
+    if membrane_flag:
+        # If membrane_flag is True, include the membrane section
+        sections_to_include = SECTION_LABELS_membrane
+        config["system"]["membrane_protein"] = "True"
+        # NOTE: The forcefield section will soon change so this fragment will also need to be adapted.
+        config["forcefields"]["lipid_ff"] = "amber14/lipid17.xml" 
+        
+    # Create a filtered config & filter sections
+    filtered_config = ConfigParser()
+    for section in sections_to_include:
+        if section in config:
+            filtered_config[section] = dict(config[section])
+    return filtered_config
 
 
 # <---- DEVELOP
@@ -398,21 +335,7 @@ class SimSetup:
 
         # NOTE: This is a temporary solution to handle the membrane_flag, I'm not fully content with this solution. 
         # Ideally, we should have a more elegant way to handle this, but for now, this will suffice.
-        if membrane_flag:
-            # If membrane_flag is True, include the membrane section
-            sections_to_include = ["system", "membrane_box", "simulation", "forcefields"]
-            config["system"]["membrane_protein"] = "True"
-            # NOTE: The forcefield section will soon change so this fragment will also need to be adapted.
-            config["forcefields"]["lipid_ff"] = "amber14/lipid17.xml" 
-        else:
-            # If membrane_flag is False, exclude the membrane section
-            sections_to_include = ["system", "simulation", "water_box", "forcefields"]
-
-        # Create a filtered config & filter sections
-        filtered_config = ConfigParser()
-        for section in sections_to_include:
-            if section in config:
-                filtered_config[section] = dict(config[section])
+        filtered_config = get_filtered_config(config, membrane_flag)
 
         with open(out_fname, "w") as f:
             filtered_config.write(f)
@@ -420,20 +343,10 @@ class SimSetup:
 
 
 # NOTE: this function is not actually used anywhere in the code anymore
-#def get_longest_key(keys):
-#    longest_string = max([len(key) for key in keys])
-#    return longest_string+1
+# def get_longest_key(keys):
+#     longest_string = max([len(key) for key in keys])
+#     return longest_string+1
 
-
-def sanity_check_ini_file_if_exists(ini_filename):
-    """
-    Checks if the ini file exists. Raises a FileNotFoundError if the file does not exist.
-    """
-    if not os.path.isfile(ini_filename):
-        raise FileNotFoundError(
-            f"Provided config .ini file not found: {ini_filename}\n"
-            "Use simprepper-example-config to generate a template configuration."
-        )
 
 def sanity_check_ini_file_content(config_content, field_sections):
     """
@@ -504,3 +417,26 @@ def get_field_default(field_name, field_sections):
                     return field.default_value * field.unit
                 return field.default_value
     raise KeyError(f"Field '{field_name}' not found.")
+
+
+def write_example_ini():
+    """
+    Writes an example ini file with all default values.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="default_config.ini",
+        help="Output .ini filename"
+    )
+    parser.add_argument(
+        "--membrane",
+        action="store_true",
+        help="Generate a configuration template for a membrane protein system"
+    )
+    args = parser.parse_args()
+
+    SimSetup().to_ini(args.output, args.membrane)
+
+    print(f"Wrote example config to {args.output}")

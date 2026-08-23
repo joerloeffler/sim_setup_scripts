@@ -11,7 +11,6 @@ from openmmtools.utils import get_fastest_platform
 from openmm import app as mm_apps
 from openmm.app import forcefield
 from openmm import unit as mm_units
-from simprepper.sim_setup import SimSetup
 
 
 def quit_with_error(
@@ -236,29 +235,6 @@ def find_forcefields():
         print(f"{d.name}/")
         print_tree(d)
         print()
-
-
-def write_example_ini():
-    """
-    Writes an example ini file with all default values.
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-o",
-        "--output",
-        default="default_config.ini",
-        help="Output .ini filename"
-    )
-    parser.add_argument(
-        "--membrane",
-        action="store_true",
-        help="Generate a configuration template for a membrane protein system"
-    )
-    args = parser.parse_args()
-
-    SimSetup().to_ini(args.output, args.membrane)
-
-    print(f"Wrote example config to {args.output}")
 
 
 def calculate_protein_dimensions(positions):

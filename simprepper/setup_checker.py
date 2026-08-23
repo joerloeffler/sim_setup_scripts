@@ -1,7 +1,7 @@
 from openmm import unit as mm_units
 
 from simprepper.sim_setup import SimSetup
-from simprepper.utils import quit_with_error    
+from simprepper.utils.utils import quit_with_error    
 
 # NOTE: This class is the important feature here
 class CheckItem:

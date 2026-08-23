@@ -14,11 +14,11 @@ logging.getLogger("pymbar").setLevel(logging.ERROR)
 
 import numpy as np
 from simprepper.argument_parsing import parser
-from simprepper.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension, check_initial_box_dimensions, calculate_protein_dimensions
-from simprepper.utils import ExportPathManager
+from simprepper.utils.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension, check_initial_box_dimensions, calculate_protein_dimensions
+from simprepper.utils.utils import ExportPathManager
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
-from simprepper.sim_setup import WaterBoxSection, SimSetup_fromAbstractSections
+from simprepper.sim_setup import WaterBoxSection, SimSetup_fromAbstractSections, SimSetupField
 from simprepper.setup_checker import SetupChecker
 
 # OpenMM imports
@@ -164,10 +164,15 @@ def main():
     #print(faulty_box.fields) # Output: {'box_shape': 'cube', 'padding': 5.0}
 
     temp_sim_setup = SimSetup_fromAbstractSections.from_defaults()
+    # hacky way to change one field... (just for development)
+    temp_sim_setup.sections["simulation"].fields["temperature"] = SimSetupField("temperature", mm_units.kelvin, 300.0, 1337.69, float)
     print("\nall fields:\n ", temp_sim_setup.fields.keys())
     print("from these sections:\n ", temp_sim_setup.sections.keys())
-    print("Quitting debugging run...")
+
+    temp_sim_setup.to_ini("test_out.ini")
+    print("END DEVELOP...\n")
     if args.debug:
+        print("Quitting debugging run...")
         quit()
 
     # Optional ligand
