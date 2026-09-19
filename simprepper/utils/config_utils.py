@@ -34,16 +34,37 @@ class SimSetupField:
 
     @property
     def value(self):
+        """Only give the value, regardless of whether this field has a unit or not...
+        """
         if self.value_was_set:
             return self.given_value
         return self.default_value
 
     @property
     def value_with_unit(self):
+        """This property, will probably never be used.
+        """
         if self.unit is None:
             print("SetupField {} does not have a unit...".format(self.name))
             return self.value
         return self.value * self.unit
+
+    def value_in_unit(self, unit):
+        """Construct an openmm `quantity`, and immediately use the builtin function
+        """
+        if self.unit is None:  # in this case, we cannot construct an openmm `quantity``
+            return self.value
+        return self.value_with_unit.value_in_unit(unit)
+
+    @property
+    def with_or_without_u(self):
+        """Great song by U2!
+        ... but in this case it means _unit
+        -> give the value of the fields, if this field has a unit then add the unit, too.
+        """
+        if self.unit is None:
+            return self.value
+        return self.value_with_unit
 
     def __repr__(self):
         all_vars_except_name = {key:val for (key,val) in vars(self).items() if not key=="name"}
@@ -73,6 +94,7 @@ class AbstractConfigSection:
 
     def __init__(self, input_fields):
         self.fields = input_fields
+        return None
 
     @classmethod
     def from_defaults(cls):
@@ -168,7 +190,6 @@ class ForceFieldsSectionAmber(AbstractConfigSection):
     default_fields     = {f.name: f for f in _list_of_defaults}
 
 
-
 def sanity_check_ini_file_if_exists(ini_filename):
     """
     Checks if the ini file exists. Raises a FileNotFoundError if the file does not exist.
@@ -176,6 +197,6 @@ def sanity_check_ini_file_if_exists(ini_filename):
     if not os.path.isfile(ini_filename):
         raise FileNotFoundError(
             f"Provided config .ini file not found: {ini_filename}\n"
-            "Use simprepper-example-config to generate a template configuration."
+            "Use simprepper-example-config to generate a template configuration file."
         )
 

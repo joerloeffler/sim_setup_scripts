@@ -40,73 +40,76 @@ class CheckItem:
 
 
 # Example for devs:
-#TODO: Currently the SimSetup class does not include sections, but only the fields from the sections, so we cannot actually check for sections...
+#TODO: Currently the SimSetup class does not include sections, but only the fields from the sections, 
+#   -> so we cannot actually check for sections...
 template_item = CheckItem(name="Mutually exclusive sections: [propA] and [propB]",
-                          condition=lambda sim_setup: 
-                          (sim_setup["propA"]==True and 
-                           sim_setup["propB"]==True),
+                          condition=lambda config: 
+                          (config.propA == True and 
+                           config.propB ==True ),
                           explanation="Dear User, propA and propB are mutually exclusive...",
                           should_quit=True  # if this will definitely lead to an erroneous setup, instruct termination of simprepper
                           )
-#NOTE: Some checks will not be performed, if some other condition
-template_item = CheckItem(name="sign of [propA], but propA is only given if propB is false.",
-                          condition=lambda sim_setup: 
-                          (sim_setup["propA"]<0),
+#NOTE: Some checks can be skipped, if some other condition is met (skip_condition)
+template_item = CheckItem(name="sign of [propA]",
+                          condition=lambda config: 
+                          (config.propA < 0),
                           explanation="Dear User, propA should be larger than 0...",
-                          skip_condition=lambda sim_setup: sim_setup["propB"]==True,
+                          skip_condition=lambda config: config.propB == True,
                           should_quit=False  # if the anticipated error happens after our RunTime, we let it slide
                           )
 
 # Actual list of checks for runtime
 LIST_OF_CHECKS = [CheckItem(name="Mutually exclusive fields: membrane_protein and box_shape",
                             condition=lambda config: 
-                            (config.membrane_protein.value==True and 
-                             "box_shape" in config),
+                            (config.membrane_protein==True and 
+                             config.has_field("box_shape") ),
                             explanation="If you prepare a membrane protein, you cannot use the [water box] section in the config...",
-                            should_quit=False  # TODO: This test currently fails with default configs, because if nothing was given, there is always a default for box_shape...
+                            should_quit=False  # TODO: I think this test is actually obsolete, \
+                            #                       -> because this is already captured during sanity checking of the config file...
                             ),
-                # TODO: UPDATE THE SETUPCHECKER TO WORK WITH THE NEW SIMSETUP CLASS!!!
-                #   CheckItem(name="Sign of ionic strength",
-                #             condition=lambda sim_setup: 
-                #             (sim_setup.ionic_strength._value < 0.0),  # note we don't use .value_in_unit, because for the sign, the unit doesnt matter...
-                #             explanation="Ionic strength shouldn't be negative",
-                #             should_quit=True  # modelling of solvent box will fail
-                #             ),
-                #   CheckItem(name="Sign of timestep",
-                #             condition=lambda sim_setup: 
-                #             (sim_setup.timestep._value < 0.0),  # note we don't use .value_in_unit, because for the sign, the unit doesnt matter...
-                #              explanation="Timestep shouldn't be negative",
-                #              should_quit=False  # This error will only happen after our RunTime, so we let it slide...
-                #              ),
-                #   CheckItem(name="Sign of temperature",
-                #             condition=lambda sim_setup: 
-                #             (sim_setup.temperature.value_in_unit(mm_units.kelvin) < 0.0),
-                #             explanation="Temperature (in Kelvin) shouldn't be negative",
-                #             should_quit=False  # This error will only happen after our RunTime, so we let it slide...
-                #             ),
-                #   CheckItem(name="Sign of box_padding",
-                #             condition=lambda sim_setup: 
-                #             (sim_setup.padding._value < 0.0),
-                #             explanation="Padding shouldn't be negative",
-                #             skip_condition=lambda sim_setup: sim_setup.membrane_protein==True,
-                #             should_quit=False  # This error will only happen after our RunTime, so we let it slide...
-                #             ),  
-                #   CheckItem(name="Sign of minimum padding",
-                #             condition=lambda sim_setup: 
-                #             (sim_setup.minimum_padding._value < 0.0),
-                #             explanation="Minimum padding shouldn't be negative",
-                #             skip_condition=lambda sim_setup: sim_setup.membrane_protein==False,
-                #             should_quit=False  # This error will only happen after our RunTime, so we let it slide...
-                #             ),  
+                
+                  CheckItem(name="Sign of ionic strength",
+                            condition=lambda config: 
+                            (config.fields.ionic_strength.value < 0.0),  # note we ignore the unit, because for the sign, it doesnt matter...
+                            explanation="Ionic strength shouldn't be negative",
+                            should_quit=True  # modelling of solvent box will fail
+                            ),
+                  CheckItem(name="Sign of timestep",
+                            condition=lambda config: 
+                            (config.fields.timestep.value < 0.0),  # note we don't use .value_in_unit, because for the sign, the unit doesnt matter...
+                             explanation="Timestep shouldn't be negative",
+                             should_quit=False  # This will only lead to errors after the Runtime of `SimPrepper`, so we let it slide...
+                             ),
+                  CheckItem(name="Sign of temperature",
+                            condition=lambda config: 
+                            (config.fields.temperature.value_in_unit(mm_units.kelvin) < 0.0),
+                            explanation="Temperature (in Kelvin) shouldn't be negative",
+                            should_quit=False  # This will only lead to errors after the Runtime of `SimPrepper`, so we let it slide...
+                            ),
+                  CheckItem(name="Sign of box_padding",
+                            condition=lambda config: 
+                            (config.fields.padding.value < 0.0),
+                            explanation="Padding shouldn't be negative",
+                            skip_condition=lambda config: config.membrane_protein==True,
+                            should_quit=False  # This will only lead to errors after the Runtime of `SimPrepper`, so we let it slide...
+                            ),  
+                  CheckItem(name="Sign of minimum padding",
+                            condition=lambda config: 
+                            (config.fields.minimum_padding.value < 0.0),
+                            explanation="Minimum padding shouldn't be negative",
+                            skip_condition=lambda config: config.membrane_protein==False,
+                            should_quit=False  # This will only lead to errors after the Runtime of `SimPrepper`, so we let it slide...
+                            ),  
                   # ...
                   ]
 
 
+#TODO: Rename to ConfigChecker
 # This is the workhorse here, but in the best base, this never needs to be touched
 class SetupChecker:
     sim_setup          : SimSetup | None = None
     list_of_checks     : list[CheckItem] = []
-    #TODO: instead of verbose flag, use logging!
+    #TODO: instead of verbose flag, parse logging level...?
     verbose            : bool            = False
     _results_of_checks : list            = []
     _has_finished      : bool            = False

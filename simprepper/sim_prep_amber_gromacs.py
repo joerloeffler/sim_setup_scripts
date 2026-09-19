@@ -18,7 +18,7 @@ from simprepper.utils.utils import select_platform, get_sysname, prep_filetree, 
 from simprepper.utils.utils import ExportPathManager
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
-from simprepper.sim_setup import WaterBoxSection, SimSetup, SimSetupField
+from simprepper.sim_setup import SimSetup
 from simprepper.setup_checker import SetupChecker
 
 # OpenMM imports
@@ -54,7 +54,7 @@ def process_ligand(setup, verbose):
                             allow_undefined_stereo=True)
 
     ligand_topology, ligand_positions, ligand_template_gen = parametrize_ligand(ligand,
-                                                                                lig_ff=setup.config_fields.ligand_ff.value
+                                                                                lig_ff=setup.config.ligand_ff
                                                                                 )
     return ligand, ligand_template_gen
 
@@ -65,25 +65,21 @@ args = parser.parse_args()
 sys_name, rec_basename = get_sysname(args)
 
 # Construct this class-instance from ini file or from command line arguments
-setup = None
 if args.ini is not None:
-    # Print a warning if the ini file is provided, to inform users that command-line arguments will be ignored
-    warnings.warn(
-        "Config .ini file provided: command-line arguments for simulation parameters will be ignored.",
-        UserWarning,
-        stacklevel=2
-    )
     setup = SimSetup.from_ini(sys_name, 
                               rec_fname=args.rec,
                               lig_fname=args.lig,
                               ini_fname=args.ini)
 else:
-    warnings.warn(
-        "Argument parsing is a legacy feature. For more flexibility and a wider range of options, consider using a config .ini file.",
-        UserWarning,
-        stacklevel=2
-    )
-    setup = SimSetup.from_args(sys_name, args)
+    msg = ("Since you did not provide any .ini file, " + \
+            "we are using default values for all settings. " + \
+            "Consider executing `simprepper-example-config` to see all available settings.")
+    warnings.warn(msg,
+                  UserWarning,
+                  stacklevel=2)
+    setup = SimSetup.from_defaults(sys_name, 
+                                   rec_fname=args.rec,
+                                   lig_fname=args.lig)
 
 
 export_path_manager = ExportPathManager.from_args(sys_name, args)
@@ -105,26 +101,20 @@ logging.basicConfig(
     force=True  # NOTE: paq: otherwise doesn't print to stdout on all systems...
 )
 
-#NOTE: We might want to remove the verbose=True flag here, in the long run.
-setup_checker = SetupChecker(setup.config_fields, logging, verbose=True)
-setup_checker.run_all_checks() 
-setup_checker.get_report()
-
-
 # %% define main()
 def main():
-    # the setup contains file_names, but also the config.
-    config = setup.config_fields  # We mostly need the fields, which are read from the config.
+    #NOTE: We might want to remove the verbose=True flag here, in the long run.
+    setup_checker = SetupChecker(setup.config, logging, verbose=args.verbose)
+    setup_checker.run_all_checks() 
+    setup_checker.get_report()
 
-    print(config.nb_cutoff.value)
-    print(setup.nb_cutoff)
-    print(config.nb_cutoff.value_with_unit)
-    quit()
+    # the setup contains sys_name and file_names, but also the `SimPrepperConfig`.
+    config = setup.config  # We mostly need the SimPrepperConfig fields, which are direct attributes
     logging.info("Preparing the receptor...")
     pdb_fixed = prepare_protein(setup.rec_fname,
                                 ignore_missing_residues=False,
                                 ignore_terminal_missing_residues=True,
-                                ph=config.ph.value,
+                                ph=config.ph,
                                 )
 
     
@@ -135,23 +125,24 @@ def main():
                               )
 
     logging.info("Modelling the system...")
-
+    #BUG: If we pass `None` as an argument to mm_apps.ForceField it will look for a File called `None`
+    # Therefore, None-forcefields, should not be passed on...
     # Create an OpenMM ForceField object with parsed forcefields
     if config.lipid_ff is None:
         forcefield = mm_apps.ForceField(
-            config.protein_ff.value,
-            config.water_ff.value,
-            config.ion_ff.value
+            config.protein_ff,
+            config.water_ff,
+            config.ion_ff
         )
-        logging.info(f"Using {config.protein_ff.value}, {config.water_ff.value}, and {config.ion_ff.value} forcefields.")
+        logging.info(f"Using {config.protein_ff}, {config.water_ff}, and {config.ion_ff} forcefields.")
     else:
         forcefield = mm_apps.ForceField(
-            config.protein_ff.value,
-            config.water_ff.value,
-            config.ion_ff.value,
-            config.lipid_ff.value,
+            config.protein_ff,
+            config.water_ff,
+            config.ion_ff,
+            config.lipid_ff,
         )
-        logging.info(f"Using {config.protein_ff.value}, {config.water_ff.value}, {config.ion_ff.value}, and {config.lipid_ff.value} forcefields.")
+        logging.info(f"Using {config.protein_ff}, {config.water_ff}, {config.ion_ff}, and {config.lipid_ff} forcefields.")
 
     # Optional ligand
     if setup.lig_fname:
@@ -162,9 +153,9 @@ def main():
         forcefield.registerTemplateGenerator(ligand_template_generator)
         
         # if you use the following line: the ligand is added a second time.
-        # I will keep this line here, because in alternative preparation pipelines, this is a very useful line...
         # sys_modeller.add(ligand_topology, ligand_positions)  
-        # # ligand_topology, and ligand_positions ar enot hidden in `process_ligand`
+        # -> ligand_topology, and ligand_positions are now hidden in `process_ligand`
+        # I kept this line here, because in alternative preparation pipelines, this might become useful again...
     else:
         logging.info("No ligand provided. Running protein-only setup.")
 
@@ -181,25 +172,25 @@ def main():
     #Maybe this is more of a problem for something like a ModelChecker?
     check_initial_box_dimensions(protein_dims, initial_box_vectors)
 
-    if config.membrane_protein.value:
+    if config.membrane_protein:
         logging.info("Preparing membrane protein system. Adding membrane, solvent, and ions...")
         # TODO: find a way to define box size more precisely
         sys_modeller.addMembrane(forcefield,
-                                lipidType=config.lipid_type.value,
-                                membraneCenterZ=config.membrane_center_z.value_with_unit,
-                                minimumPadding=config.minimum_padding.value_with_unit,
-                                ionicStrength=config.ionic_strength.value_with_unit,
-                                neutralize=True,
-                                )
+                                 lipidType=config.lipid_type,
+                                 membraneCenterZ=config.membrane_center_z,
+                                 minimumPadding=config.minimum_padding,
+                                 ionicStrength=config.ionic_strength,
+                                 neutralize=True,
+                                 )
     else:
         logging.info("Preparing soluble protein system. Adding solvent and ions...")
         # TODO: bring back an option of providing box_length instead of box_padding (was implemented with 
         # argument parsing, but got lost with the new config file approach)
         sys_modeller.addSolvent(forcefield,
-                                ionicStrength=config.ionic_strength.value_with_unit,
+                                ionicStrength=config.ionic_strength,
                                 neutralize=True,
-                                boxShape=config.box_shape.value,
-                                padding=config.padding.value_with_unit,
+                                boxShape=config.box_shape,
+                                padding=config.padding,
                                 )
     logging.info("Selecting MD platform...")
     platform = select_platform("fastest")
@@ -207,17 +198,17 @@ def main():
     logging.info("Setting up the system...")
     system = forcefield.createSystem(sys_modeller.topology,
                                      nonbondedMethod=mm_apps.PME,
-                                     nonbondedCutoff=config.nb_cutoff.value_with_unit,
+                                     nonbondedCutoff=config.nb_cutoff,
                                      removeCMMotion=False,
                                      rigidWater=True,
-                                     hydrogenMass=config.hydrogen_mass.value_with_unit,
+                                     hydrogenMass=config.hydrogen_mass,
                                      constraints=mm_apps.HBonds,
                                      )
 
     logging.info("Setting up the integrator...")
-    integrator = openmm.LangevinMiddleIntegrator(config.temperature.value_with_unit,
+    integrator = openmm.LangevinMiddleIntegrator(config.temperature,
                                                  1 / mm_units.picoseconds,
-                                                 config.timestep.value_with_unit,
+                                                 config.timestep,
                                                  )
 
     logging.info("Setting up the simulation...")
@@ -238,9 +229,10 @@ def main():
     if SHOULD_SAVE_CONFIG:
         out_fname = os.path.join(LOG_PATH, "simprepper.out.ini")
         logging.info(f"Writing simulation setup to file {out_fname}.")
-        setup.to_ini(out_fname, setup.config_fields.membrane_protein.value)
+        setup.to_ini(out_fname, setup.config.membrane_protein)
 
     logging.info("All done!")
+    return 1  # end of main()
 
 
 # %% actually run main()
