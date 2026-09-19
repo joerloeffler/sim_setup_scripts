@@ -1,13 +1,15 @@
 from openmm import unit as mm_units
 from openmm.unit.quantity import Quantity as mm_quantity
+from collections import namedtuple
 from openff.units.openmm import openmm_unit_to_string
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, make_dataclass
 from configparser import ConfigParser
 import argparse
 import warnings
 import os
 from simprepper.utils.utils import quit_with_error
-from simprepper.utils.config_utils import SimSetupField, SystemSection, WaterBoxSection, MembraneBoxSection, SimulationSection, ForceFieldsSectionAmber
+from simprepper.utils.config_utils import SimSetupField, SystemSection, WaterBoxSection 
+from simprepper.utils.config_utils import MembraneBoxSection, SimulationSection, ForceFieldsSectionAmber
 from simprepper.utils.config_utils import sanity_check_ini_file_if_exists
 
 os.environ["JAX_ENABLE_X64"] = "True" # get rid of annoying JAX warning
@@ -29,18 +31,108 @@ SECTION_LABELS_vanilla   = list(_CONFIG_SECTIONS_vanilla.keys())
 #                        = ["system", "water_box",    "simulation", "forcefields"]
 
 
-_CONFIG_SECTIONS_membrane = [SystemSection.from_kwargs(membrane_protein=False),
-                            MembraneBoxSection,  # does not exist, yet
-                            SimulationSection, 
-                            ForceFieldsSectionAmber]
+_CONFIG_SECTIONS_membrane = [SystemSection.from_kwargs(membrane_protein=True),
+                             MembraneBoxSection,  # does not exist, yet
+                             SimulationSection, 
+                             ForceFieldsSectionAmber]
 _CONFIG_SECTIONS_membrane = {section.section_name:section for section in _CONFIG_SECTIONS_membrane}
 SECTION_LABELS_membrane   = list(_CONFIG_SECTIONS_membrane.keys())
 #                         = ["system", "membrane_box", "simulation", "forcefields"]
 
 
+def check_for_unknown_sections(config_content, expected_sections):
+    expected_section_keys = set(expected_sections.keys())
+    actual_section_keys = set(config_content.sections())
+    unknown_sections = actual_section_keys - expected_section_keys
+    if unknown_sections:
+        raise ValueError(
+            f"Unknown section(s) in config file: {', '.join(sorted(unknown_sections))}\n"
+            f"Expected sections: {', '.join(sorted(expected_section_keys))}"
+        )
+    return actual_section_keys
+
+
+def sanity_check_ini_file_content(config_content, expected_sections):
+    """
+    Checks if the ini file is valid. Raises a ValueError if there are unknown 
+    sections or fields in the ini file.
+    """
+    # Raise an error if there are unknown sections in the ini file, to help users identify typos or misplaced options
+    actually_given_section_keys = check_for_unknown_sections(config_content, expected_sections)
+    
+    # Check for unknown fields in each section
+    # TODO: reimplement this check!
+    # actual_fields = {section: set(config_content[section].keys()) for section in actually_given_section_keys}
+    # unknown_fields = {}
+    # for section_key in actually_given_section_keys:
+    #     section_of_interest = expected_sections.get(section_key)
+    #     print([field for field in section_of_interest.default_fields])
+    #     expected_fields = {field.name.lower(): field.name for field in section_of_interest.default_fields}
+    #     unknown = {field for field in actual_fields[section_key] if field.lower() not in expected_fields.keys()}
+    #     if unknown:
+    #         unknown_fields[section_key] = {
+    #             "unknown": unknown,
+    #             "expected": sorted(expected_fields.values())
+    #         }
+    # # Raise an error
+    # if unknown_fields:
+    #     msg = ["Unknown field(s) found in config file:"]
+    #     for section, info in unknown_fields.items():
+    #         msg.append(f"Found in [{section}]: {', '.join(sorted(info['unknown']))}")
+    #         msg.append(f"  Expected: {', '.join(info['expected'])}")
+    #     raise ValueError("\n".join(msg))
+
+
+def check_for_membrane_protein(config):
+    """Do a config preflight, to check if we have a membrane protein, or not
+    """
+    # hack: if capitalization in config is wrong:
+    # map: any capitalization fo the lowcaps version
+    lowcaps_keys = {key.lower():key for key in config.keys()}
+    
+    if "system" in lowcaps_keys.keys():
+        #TODO : potential bug "System"...
+        section_of_interest = config[lowcaps_keys["system"]]
+        if section_of_interest is None:
+            return False
+        lowcaps_kkeys = {key.lower():key for key in section_of_interest.keys()}
+        if "membrane_protein" in lowcaps_kkeys.keys():
+            field_of_interest = section_of_interest[lowcaps_kkeys["membrane_protein"]]
+            return str2bool(field_of_interest)
+    return False
+
+
+# TODO: Essentially the same function exists in argument_parsing as well, but it raises a different error!!
+def str2bool(v) -> bool:
+    """This function enables the translation of user input to actual boolean values
+    otherwise bool("false") would return `True`,
+    which is really not what the user wants...
+    """
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise TypeError('Boolean value expected.')
+
+
+def parse_value(value, field):
+    if value.strip().lower() == "none":
+        value = None
+
+    # Convert the value to the appropriate type
+    if field.data_type is bool:
+        # boolean values are a special case (otherwise any string would be interpreted as True)
+        value = str2bool(value)
+    else:
+        value = field.data_type(value)
+    return value
+
+
 # %% DEVELOPMENT: This is supposed to substitute SimSetup (still defined below)
-@dataclass
-class SimSetup_fromAbstractSections:
+class SimSetup:
     """For developers: 
     if you want to add a property to this class:
     1. Add it here, to be a field that can be initialized
@@ -53,8 +145,9 @@ class SimSetup_fromAbstractSections:
     sys_name        : str         = "DEFAULT_SYS_NAME"
     rec_fname       : str         = "DEFAULT_REC_NAME"
     lig_fname       : str | None  = None
-    sections        : dict        = field(default_factory=dict)
-    fields          : dict        = field(default_factory=dict)
+    config_sections : dict        = {}
+    _fields_dict    : dict        = {}
+    config_fields                 = None  
 
     @classmethod
     def from_args(cls,
@@ -93,53 +186,99 @@ class SimSetup_fromAbstractSections:
                    sections=sections_out)  # call __init__ 
 
     def __init__(self, sys_name, rec_fname, lig_fname, sections):
-        self.sys_name     = sys_name
-        self.rec_fname    = rec_fname
-        self.lig_fname    = lig_fname
-        self.sections     = sections
+        self.sys_name           = sys_name
+        self.rec_fname          = rec_fname
+        self.lig_fname          = lig_fname
+        self.config_sections    = sections
 
         # What happens below? We flatten all fields to a single dictionary and remove the hierarchical layer of the sections
-        fields ={}
-        # for section_key,section in sections.items():  # we do not actually care about the keys here...
-        for section in sections.values():
+        fields_dict ={}
+        for section in sections.values():   # we do not actually care about the section names any more...
             for field_key,field in section.fields.items():
-                fields[field_key] = field
+                fields_dict[field_key] = field
 
-        self.fields       = fields
+        self._fields_dict       = fields_dict
+        config_fields = namedtuple("ConfigFields", list(fields_dict.keys()))(**fields_dict)
+        self.config_fields = config_fields
         return None
 
     @classmethod
-    def from_ini(cls, sys_name, args):
+    def from_ini(cls, sys_name, ini_fname, rec_fname, lig_fname):
         """
         This is a constructor function, to generate an instance of SimSetup() from an ini file.
         """
-        #TODO: implement read values to given, values, otherwise use default values
-        pass
+        # Check if the ini file exists
+        sanity_check_ini_file_if_exists(ini_fname)
+
+        # Read the config
+        config = ConfigParser(inline_comment_prefixes=("#",))
+        config.read(ini_fname)
+
+        membrane_flag = check_for_membrane_protein(config)
+
+        sections=_CONFIG_SECTIONS_vanilla
+        if membrane_flag:
+            print("Detected a membrane protein config!!")
+            sections=_CONFIG_SECTIONS_membrane
+        # Check if the ini file is valid
+
+        sanity_check_ini_file_content(config, sections)
+
+        # Set the receptor and ligand file names from the command line arguments
+        kwargs_for_init = dict(sys_name=sys_name,
+                               rec_fname=rec_fname,
+                               lig_fname=lig_fname,
+                               )
+        sections_out = {}
+        for section_key, section in sections.items():
+            section_loop = section.from_defaults()
+            section_in_ini = config[section_key]
+            for field_key, given_value in section_in_ini.items():
+                parsed_value = parse_value(given_value, section_loop.fields[field_key])                
+                section_loop.fields[field_key].set_value(parsed_value)
+
+            sections_out[section_key] = section_loop
+        kwargs_for_init["sections"] = sections_out
+
+        return cls(**kwargs_for_init)
 
     def to_ini(self, out_fname, membrane_flag=False):
         """
         Write the simulation setup to an ini file. This can be used to reload the same setup later, or to use it as a template for other setups.
         """
         config = ConfigParser()
-        for section_key, section in self.sections.items():
+        for section_key, section in self.config_sections.items():
             # retrieve the SimSetupField object for the current key
             config[section_key] = {}
             for field_key, field in section.fields.items():
-                # add a comment with the unit string if the field has a unit
-                value = field.given_value or field.default_value
-                print(field_key, value)
-                if field.unit is not None:
+                value = str(field.value)
+                # print(field_key, value)  # debug
+                if field.unit is not None:  # add a comment with the unit string if the field has a unit
                     unit_str = openmm_unit_to_string(field.unit)
-                    config[section_key][field_key] = f"{value}  # {unit_str}"
-                else:
-                    config[section_key][field_key] = f"{value} "
+                    value = f"{value}  # {unit_str}"
+                config[section_key][field_key] = f"{value} "
 
+        # TODO: Check if this is even necessary anymore. I think if it is properly initialized, this does not need to be filrered anymore..
         # NOTE: This is a temporary solution to handle the membrane_flag, I'm not fully content with this solution. 
         # Ideally, we should have a more elegant way to handle this, but for now, this will suffice.
         filtered_config = get_filtered_config(config, membrane_flag)
 
         with open(out_fname, "w") as f:
             filtered_config.write(f)
+        return None
+
+    def print_fields(self):
+        """Mostly for debugging...
+        """
+        for key,val in self._fields_dict.items():
+            print(key, val)
+        return None
+
+    def __getattr__(self, name):
+        if name in self._fields_dict.keys():
+            # by default return the value property, without a unit...
+            return self._fields_dict[name].value
+        print("Unknown setup attribute: {}".format(name))
         return None
 
 
@@ -163,39 +302,39 @@ def get_filtered_config(config, membrane_flag):
 # <---- DEVELOP
 
 # this is the original version (until AUG/2026)
-CONFIG_SECTIONS = {
+CONFIG_SECTIONS_legacy = {
     "system": [
-        SimSetupField("membrane_protein", None, False, None, bool),
+        SimSetupField("membrane_protein", None, False, bool),
     ],
     "membrane_box": [     # membrane parameters present only if membrane=True
-        SimSetupField("lipid_type", None, "POPC", None, str),
-        SimSetupField("membrane_center_z", None, 0.0, None, float),
-        SimSetupField("minimum_padding", mm_units.nanometer, 1.0, None, float),
+        SimSetupField("lipid_type", None, "POPC", str),
+        SimSetupField("membrane_center_z", None, 0.0, float),
+        SimSetupField("minimum_padding", mm_units.nanometer, 1.0, float),
     ],
     "simulation": [
-        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, None, float),
-        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, None, float),
-        SimSetupField("timestep", mm_units.picoseconds, 0.004, None, float),
-        SimSetupField("temperature", mm_units.kelvin, 300.0, None, float),
-        SimSetupField("ionic_strength", mm_units.molar, 0.15, None, float),
-        SimSetupField("ph", None, 7.4, None, float),
+        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
+        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, float),
+        SimSetupField("timestep", mm_units.picoseconds, 0.004, float),
+        SimSetupField("temperature", mm_units.kelvin, 300.0, float),
+        SimSetupField("ionic_strength", mm_units.molar, 0.15, float),
+        SimSetupField("ph", None, 7.4, float),
     ],
     "water_box": [
-        SimSetupField("box_shape", None, "cube", None, str),
-        SimSetupField("padding", mm_units.nanometer, 3.0, None, float),
+        SimSetupField("box_shape", None, "cube", str),
+        SimSetupField("padding", mm_units.nanometer, 3.0, float),
     ],
     "forcefields": [
-        SimSetupField("ligand_ff", None, "GAFF", None, str),
-        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", None, str),
-        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", None, str),
-        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", None, str),
-        SimSetupField("lipid_ff", None, None, None, str),
+        SimSetupField("ligand_ff", None, "GAFF", str),
+        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", str),
+        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", str),
+        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", str),
+        SimSetupField("lipid_ff", None, None, str),
     ]
 }
 
 # %% SimSetup class
 @dataclass
-class SimSetup:
+class SimSetup_legacy:
     """For developers: 
     if you want to add a property to this class:
     1. Add it here, to be a field that can be initialized
@@ -208,23 +347,23 @@ class SimSetup:
     sys_name         : str         = "DEFAULT_SYS_NAME"
     rec_fname        : str         = "DEFAULT_REC_NAME"
     lig_fname        : str | None  = None
-    membrane_protein : bool        = field(default_factory=lambda: get_field_default("membrane_protein", CONFIG_SECTIONS))
-    lipid_type       : str         = field(default_factory=lambda: get_field_default("lipid_type", CONFIG_SECTIONS))
-    membrane_center_z: float       = field(default_factory=lambda: get_field_default("membrane_center_z", CONFIG_SECTIONS))
-    minimum_padding  : mm_quantity = field(default_factory=lambda: get_field_default("minimum_padding", CONFIG_SECTIONS))
-    nb_cutoff        : mm_quantity = field(default_factory=lambda: get_field_default("nb_cutoff", CONFIG_SECTIONS))
-    hydrogen_mass    : mm_quantity = field(default_factory=lambda: get_field_default("hydrogen_mass", CONFIG_SECTIONS))
-    timestep         : mm_quantity = field(default_factory=lambda: get_field_default("timestep", CONFIG_SECTIONS))
-    temperature      : mm_quantity = field(default_factory=lambda: get_field_default("temperature", CONFIG_SECTIONS))
-    box_shape        : str         = field(default_factory=lambda: get_field_default("box_shape", CONFIG_SECTIONS))
-    padding          : mm_quantity = field(default_factory=lambda: get_field_default("padding", CONFIG_SECTIONS))
-    ionic_strength   : mm_quantity = field(default_factory=lambda: get_field_default("ionic_strength", CONFIG_SECTIONS))
-    ph               : float       = field(default_factory=lambda: get_field_default("ph", CONFIG_SECTIONS))
-    ligand_ff        : str         = field(default_factory=lambda: get_field_default("ligand_ff", CONFIG_SECTIONS))
-    protein_ff       : str         = field(default_factory=lambda: get_field_default("protein_ff", CONFIG_SECTIONS))
-    water_ff         : str         = field(default_factory=lambda: get_field_default("water_ff", CONFIG_SECTIONS))
-    ion_ff           : str         = field(default_factory=lambda: get_field_default("ion_ff", CONFIG_SECTIONS))
-    lipid_ff         : str | None  = field(default_factory=lambda: get_field_default("lipid_ff", CONFIG_SECTIONS))
+    membrane_protein : bool        = field(default_factory=lambda: get_field_default("membrane_protein", CONFIG_SECTIONS_legacy))
+    lipid_type       : str         = field(default_factory=lambda: get_field_default("lipid_type", CONFIG_SECTIONS_legacy))
+    membrane_center_z: float       = field(default_factory=lambda: get_field_default("membrane_center_z", CONFIG_SECTIONS_legacy))
+    minimum_padding  : mm_quantity = field(default_factory=lambda: get_field_default("minimum_padding", CONFIG_SECTIONS_legacy))
+    nb_cutoff        : mm_quantity = field(default_factory=lambda: get_field_default("nb_cutoff", CONFIG_SECTIONS_legacy))
+    hydrogen_mass    : mm_quantity = field(default_factory=lambda: get_field_default("hydrogen_mass", CONFIG_SECTIONS_legacy))
+    timestep         : mm_quantity = field(default_factory=lambda: get_field_default("timestep", CONFIG_SECTIONS_legacy))
+    temperature      : mm_quantity = field(default_factory=lambda: get_field_default("temperature", CONFIG_SECTIONS_legacy))
+    box_shape        : str         = field(default_factory=lambda: get_field_default("box_shape", CONFIG_SECTIONS_legacy))
+    padding          : mm_quantity = field(default_factory=lambda: get_field_default("padding", CONFIG_SECTIONS_legacy))
+    ionic_strength   : mm_quantity = field(default_factory=lambda: get_field_default("ionic_strength", CONFIG_SECTIONS_legacy))
+    ph               : float       = field(default_factory=lambda: get_field_default("ph", CONFIG_SECTIONS_legacy))
+    ligand_ff        : str         = field(default_factory=lambda: get_field_default("ligand_ff", CONFIG_SECTIONS_legacy))
+    protein_ff       : str         = field(default_factory=lambda: get_field_default("protein_ff", CONFIG_SECTIONS_legacy))
+    water_ff         : str         = field(default_factory=lambda: get_field_default("water_ff", CONFIG_SECTIONS_legacy))
+    ion_ff           : str         = field(default_factory=lambda: get_field_default("ion_ff", CONFIG_SECTIONS_legacy))
+    lipid_ff         : str | None  = field(default_factory=lambda: get_field_default("lipid_ff", CONFIG_SECTIONS_legacy))
 
     @classmethod
     def from_args(cls,
@@ -268,7 +407,7 @@ class SimSetup:
         config.read(args.ini)
 
         # Check if the ini file is valid
-        sanity_check_ini_file_content(config, CONFIG_SECTIONS)
+        sanity_check_ini_file_content(config, CONFIG_SECTIONS_legacy)
 
         defaults = cls()  # default fallback values from dataclass
 
@@ -279,7 +418,7 @@ class SimSetup:
             lig_fname=args.lig,
         )
 
-        for section, fields in CONFIG_SECTIONS.items():
+        for section, fields in CONFIG_SECTIONS_legacy.items():
             section_data = config[section] if section in config else {}
 
             for field in fields:
@@ -319,10 +458,10 @@ class SimSetup:
         
         for key, value in props.items():
             # retrieve the SimSetupField object for the current key
-            field = get_field(key, CONFIG_SECTIONS)
+            field = get_field(key, CONFIG_SECTIONS_legacy)
             if field is None:
                 continue
-            section = get_section_of_field(key, CONFIG_SECTIONS) # get the name of the section
+            section = get_section_of_field(key, CONFIG_SECTIONS_legacy) # get the name of the section
             if section not in config:
                 config[section] = {}
             # add a comment with the unit string if the field has a unit
@@ -346,41 +485,6 @@ class SimSetup:
 # def get_longest_key(keys):
 #     longest_string = max([len(key) for key in keys])
 #     return longest_string+1
-
-
-def sanity_check_ini_file_content(config_content, field_sections):
-    """
-    Checks if the ini file is valid. Raises a ValueError if there are unknown 
-    sections or fields in the ini file.
-    """
-    # Raise an error if there are unknown sections in the ini file, to help users identify typos or misplaced options
-    expected_sections = set(field_sections.keys())
-    actual_sections = set(config_content.sections())
-    unknown_sections = actual_sections - expected_sections
-    if unknown_sections:
-        raise ValueError(
-            f"Unknown section(s) in config file: {', '.join(sorted(unknown_sections))}\n"
-            f"Expected sections: {', '.join(sorted(expected_sections))}"
-        )
-    
-    # Check for unknown fields in each section
-    actual_fields = {section: set(config_content[section].keys()) for section in actual_sections}
-    unknown_fields = {}
-    for section in actual_sections:
-        expected_fields = {field.name.lower(): field.name for field in field_sections.get(section, [])}
-        unknown = {field for field in actual_fields[section] if field.lower() not in expected_fields}
-        if unknown:
-            unknown_fields[section] = {
-                "unknown": unknown,
-                "expected": sorted(expected_fields.values())
-            }
-    # Raise an error
-    if unknown_fields:
-        msg = ["Unknown field(s) found in config file:"]
-        for section, info in unknown_fields.items():
-            msg.append(f"Found in [{section}]: {', '.join(sorted(info['unknown']))}")
-            msg.append(f"  Expected: {', '.join(info['expected'])}")
-        raise ValueError("\n".join(msg))
 
 
 def get_section_of_field(field_name, field_sections):
@@ -437,6 +541,6 @@ def write_example_ini():
     )
     args = parser.parse_args()
 
-    SimSetup().to_ini(args.output, args.membrane)
+    SimSetup.from_defaults().to_ini(args.output, args.membrane)
 
     print(f"Wrote example config to {args.output}")

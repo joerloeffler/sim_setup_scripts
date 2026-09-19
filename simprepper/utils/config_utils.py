@@ -1,15 +1,53 @@
 
 import os
-from collections import namedtuple
+# from collections import namedtuple
 from dataclasses import dataclass, field
 from openmm import unit as mm_units
 
 
-SimSetupField = namedtuple("SimSetupField", ["name", 
-                                             "unit", 
-                                             "default_value", # this will always be passed on
-                                             "given_value", # this will be None, if not initialized differently
-                                             "data_type"])
+# SimSetupField = namedtuple("SimSetupField", ["name", 
+#                                              "unit", 
+#                                              "default_value", # this will always be passed on
+#                                              "given_value", # this will be None, if not initialized differently
+#                                              "data_type"])
+
+class SimSetupField:
+    name:           str | None  = None
+    unit                        = None    
+    default_value               = None  # this will always be passed on
+    given_value                 = None # this will be None, if not initialized differently
+    data_type                   = None
+    value_was_set:  bool        = False
+
+    def __init__(self, name, unit, default_value, data_type):
+        self.name = name 
+        self.unit = unit 
+        self.default_value = default_value 
+        self.data_type = data_type 
+        # Note: Given value is not set via init!
+        return None
+        
+    def set_value(self, value):
+        self.given_value = value
+        self.value_was_set = True
+        return self  # this is very convienient, because you can initialize and set_value in one line (alled mutator)
+
+    @property
+    def value(self):
+        if self.value_was_set:
+            return self.given_value
+        return self.default_value
+
+    @property
+    def value_with_unit(self):
+        if self.unit is None:
+            print("SetupField {} does not have a unit...".format(self.name))
+            return self.value
+        return self.value * self.unit
+
+    def __repr__(self):
+        all_vars_except_name = {key:val for (key,val) in vars(self).items() if not key=="name"}
+        return "{}({})".format(self.name, all_vars_except_name)
 
 
 def initialize_field_from_kwarg(default_field_behind_key, val):
@@ -21,8 +59,8 @@ def initialize_field_from_kwarg(default_field_behind_key, val):
     field_from_user_input = SimSetupField(default_field_behind_key.name,
                                           default_field_behind_key.unit,
                                           default_field_behind_key.default_value, 
-                                          val,
                                           default_field_behind_key.data_type)
+    field_from_user_input.set_value(val)
     return field_from_user_input
 
 
@@ -75,7 +113,7 @@ class AbstractConfigSection:
 class SystemSection(AbstractConfigSection):
     section_name       = "system"
     # class-level definition of the default values
-    _list_of_defaults  = [SimSetupField("membrane_protein", None, False, None, bool)
+    _list_of_defaults  = [SimSetupField("membrane_protein", None, False, bool)
                           ]
     default_fields     = {f.name: f for f in _list_of_defaults}
 
@@ -84,8 +122,8 @@ class SystemSection(AbstractConfigSection):
 class WaterBoxSection(AbstractConfigSection):
     section_name       = "water_box"
     # class-level definition of the default values
-    _list_of_defaults  = [SimSetupField("box_shape", None, "cube", None, str),
-                          SimSetupField("padding", mm_units.nanometer, 3.0, None, float),
+    _list_of_defaults  = [SimSetupField("box_shape", None, "cube", str),
+                          SimSetupField("padding", mm_units.nanometer, 3.0, float),
                           ]
     default_fields     = {f.name: f for f in _list_of_defaults}
 
@@ -94,9 +132,9 @@ class WaterBoxSection(AbstractConfigSection):
 class MembraneBoxSection(AbstractConfigSection):
     section_name       = "membrane_box"
     # class-level definition of the default values
-    _list_of_defaults  = [SimSetupField("lipid_type", None, "POPC", None, str),
-                          SimSetupField("membrane_center_z", None, 0.0, None, float),
-                          SimSetupField("minimum_padding", mm_units.nanometer, 1.0, None, float)
+    _list_of_defaults  = [SimSetupField("lipid_type", None, "POPC", str),
+                          SimSetupField("membrane_center_z", mm_units.nanometer, 0.0, float),
+                          SimSetupField("minimum_padding", mm_units.nanometer, 1.0, float)
                           ]
     default_fields     = {f.name: f for f in _list_of_defaults}
 
@@ -106,12 +144,12 @@ class SimulationSection(AbstractConfigSection):
     section_name       = "simulation"
     # class-level definition of the default values
     _list_of_defaults  = [
-        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, None, float),
-        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, None, float),
-        SimSetupField("timestep", mm_units.picoseconds, 0.004, None, float),
-        SimSetupField("temperature", mm_units.kelvin, 300.0, None, float),
-        SimSetupField("ionic_strength", mm_units.molar, 0.15, None, float),
-        SimSetupField("ph", None, 7.4, None, float),
+        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
+        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, float),
+        SimSetupField("timestep", mm_units.picoseconds, 0.004, float),
+        SimSetupField("temperature", mm_units.kelvin, 300.0, float),
+        SimSetupField("ionic_strength", mm_units.molar, 0.15, float),
+        SimSetupField("ph", None, 7.4, float),
     ]
     default_fields    = {f.name: f for f in _list_of_defaults}
 
@@ -121,11 +159,11 @@ class ForceFieldsSectionAmber(AbstractConfigSection):
     section_name       = "forcefields"
     # class-level definition of the default values
     _list_of_defaults  = [
-        SimSetupField("ligand_ff", None, "GAFF", None, str),
-        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", None, str),
-        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", None, str),
-        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", None, str),
-        SimSetupField("lipid_ff", None, "amber14/lipid17.xml", None, str),
+        SimSetupField("ligand_ff", None, "GAFF", str),
+        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", str),
+        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", str),
+        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", str),
+        SimSetupField("lipid_ff", None, "amber14/lipid17.xml", str),
     ]
     default_fields     = {f.name: f for f in _list_of_defaults}
 

@@ -18,7 +18,7 @@ from simprepper.utils.utils import select_platform, get_sysname, prep_filetree, 
 from simprepper.utils.utils import ExportPathManager
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
 from simprepper.sim_setup import SimSetup
-from simprepper.sim_setup import WaterBoxSection, SimSetup_fromAbstractSections, SimSetupField
+from simprepper.sim_setup import WaterBoxSection, SimSetup, SimSetupField
 from simprepper.setup_checker import SetupChecker
 
 # OpenMM imports
@@ -54,7 +54,7 @@ def process_ligand(setup, verbose):
                             allow_undefined_stereo=True)
 
     ligand_topology, ligand_positions, ligand_template_gen = parametrize_ligand(ligand,
-                                                                                lig_ff=setup.ligand_ff
+                                                                                lig_ff=setup.config_fields.ligand_ff.value
                                                                                 )
     return ligand, ligand_template_gen
 
@@ -73,7 +73,10 @@ if args.ini is not None:
         UserWarning,
         stacklevel=2
     )
-    setup = SimSetup.from_ini(sys_name, args)
+    setup = SimSetup.from_ini(sys_name, 
+                              rec_fname=args.rec,
+                              lig_fname=args.lig,
+                              ini_fname=args.ini)
 else:
     warnings.warn(
         "Argument parsing is a legacy feature. For more flexibility and a wider range of options, consider using a config .ini file.",
@@ -103,19 +106,25 @@ logging.basicConfig(
 )
 
 #NOTE: We might want to remove the verbose=True flag here, in the long run.
-setup_checker = SetupChecker(setup, logging, verbose=True)
+setup_checker = SetupChecker(setup.config_fields, logging, verbose=True)
 setup_checker.run_all_checks() 
 setup_checker.get_report()
 
 
 # %% define main()
 def main():
+    # the setup contains file_names, but also the config.
+    config = setup.config_fields  # We mostly need the fields, which are read from the config.
 
+    print(config.nb_cutoff.value)
+    print(setup.nb_cutoff)
+    print(config.nb_cutoff.value_with_unit)
+    quit()
     logging.info("Preparing the receptor...")
     pdb_fixed = prepare_protein(setup.rec_fname,
                                 ignore_missing_residues=False,
                                 ignore_terminal_missing_residues=True,
-                                ph=setup.ph,
+                                ph=config.ph.value,
                                 )
 
     
@@ -128,52 +137,21 @@ def main():
     logging.info("Modelling the system...")
 
     # Create an OpenMM ForceField object with parsed forcefields
-    if setup.lipid_ff is None:
+    if config.lipid_ff is None:
         forcefield = mm_apps.ForceField(
-            setup.protein_ff,
-            setup.water_ff,
-            setup.ion_ff
+            config.protein_ff.value,
+            config.water_ff.value,
+            config.ion_ff.value
         )
-        logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, and {setup.ion_ff} forcefields.")
+        logging.info(f"Using {config.protein_ff.value}, {config.water_ff.value}, and {config.ion_ff.value} forcefields.")
     else:
         forcefield = mm_apps.ForceField(
-            setup.protein_ff,
-            setup.water_ff,
-            setup.ion_ff,
-            setup.lipid_ff,
+            config.protein_ff.value,
+            config.water_ff.value,
+            config.ion_ff.value,
+            config.lipid_ff.value,
         )
-        logging.info(f"Using {setup.protein_ff}, {setup.water_ff}, {setup.ion_ff}, and {setup.lipid_ff} forcefields.")
-    
-    # 1. Instantiate default values directly via from_defaults()
-    box = WaterBoxSection.from_defaults()
-    print(box,"\n")
-    print(box.fields["padding"],"\n\n")
-    #print(box.section_name)  # Output: simulation_box
-    #print(box.fields)        # Output: {'box_shape': 'cube', 'padding': 3.0}
-
-    # 2. Override specific fields on creation
-    # TODO: from kwargs does not completely initialize the field...
-    custom_box = WaterBoxSection.from_kwargs(padding=5.0)
-    print(custom_box,"\n")
-    print(custom_box.fields["padding"],"\n\n")
-    #print(custom_box.fields["box_shape"]) # Output: {'box_shape': 'cube', 'padding': 5.0}
-    #print(custom_box.fields["padding"]) # Output: {'box_shape': 'cube', 'padding': 5.0}
-
-    # 2. Override specific fields on creation
-    #faulty_box = WaterBoxSection.from_kwargs(cookie="tasty")
-    #print(faulty_box.fields) # Output: {'box_shape': 'cube', 'padding': 5.0}
-
-    temp_sim_setup = SimSetup_fromAbstractSections.from_defaults()
-    # hacky way to change one field... (just for development)
-    temp_sim_setup.sections["simulation"].fields["temperature"] = SimSetupField("temperature", mm_units.kelvin, 300.0, 1337.69, float)
-    print("\nall fields:\n ", temp_sim_setup.fields.keys())
-    print("from these sections:\n ", temp_sim_setup.sections.keys())
-
-    temp_sim_setup.to_ini("test_out.ini")
-    print("END DEVELOP...\n")
-    if args.debug:
-        print("Quitting debugging run...")
-        quit()
+        logging.info(f"Using {config.protein_ff.value}, {config.water_ff.value}, {config.ion_ff.value}, and {config.lipid_ff.value} forcefields.")
 
     # Optional ligand
     if setup.lig_fname:
@@ -203,14 +181,14 @@ def main():
     #Maybe this is more of a problem for something like a ModelChecker?
     check_initial_box_dimensions(protein_dims, initial_box_vectors)
 
-    if setup.membrane_protein:
+    if config.membrane_protein.value:
         logging.info("Preparing membrane protein system. Adding membrane, solvent, and ions...")
         # TODO: find a way to define box size more precisely
         sys_modeller.addMembrane(forcefield,
-                                lipidType=setup.lipid_type,
-                                membraneCenterZ=setup.membrane_center_z,
-                                minimumPadding=setup.minimum_padding,
-                                ionicStrength=setup.ionic_strength,
+                                lipidType=config.lipid_type.value,
+                                membraneCenterZ=config.membrane_center_z.value_with_unit,
+                                minimumPadding=config.minimum_padding.value_with_unit,
+                                ionicStrength=config.ionic_strength.value_with_unit,
                                 neutralize=True,
                                 )
     else:
@@ -218,29 +196,28 @@ def main():
         # TODO: bring back an option of providing box_length instead of box_padding (was implemented with 
         # argument parsing, but got lost with the new config file approach)
         sys_modeller.addSolvent(forcefield,
-                                ionicStrength=setup.ionic_strength,
+                                ionicStrength=config.ionic_strength.value_with_unit,
                                 neutralize=True,
-                                boxShape=setup.box_shape,
-                                padding=setup.padding,
+                                boxShape=config.box_shape.value,
+                                padding=config.padding.value_with_unit,
                                 )
-
     logging.info("Selecting MD platform...")
     platform = select_platform("fastest")
 
     logging.info("Setting up the system...")
     system = forcefield.createSystem(sys_modeller.topology,
                                      nonbondedMethod=mm_apps.PME,
-                                     nonbondedCutoff=setup.nb_cutoff,
+                                     nonbondedCutoff=config.nb_cutoff.value_with_unit,
                                      removeCMMotion=False,
                                      rigidWater=True,
-                                     hydrogenMass=setup.hydrogen_mass,
+                                     hydrogenMass=config.hydrogen_mass.value_with_unit,
                                      constraints=mm_apps.HBonds,
                                      )
 
     logging.info("Setting up the integrator...")
-    integrator = openmm.LangevinMiddleIntegrator(setup.temperature,
+    integrator = openmm.LangevinMiddleIntegrator(config.temperature.value_with_unit,
                                                  1 / mm_units.picoseconds,
-                                                 setup.timestep,
+                                                 config.timestep.value_with_unit,
                                                  )
 
     logging.info("Setting up the simulation...")
@@ -261,7 +238,7 @@ def main():
     if SHOULD_SAVE_CONFIG:
         out_fname = os.path.join(LOG_PATH, "simprepper.out.ini")
         logging.info(f"Writing simulation setup to file {out_fname}.")
-        setup.to_ini(out_fname, setup.membrane_protein)
+        setup.to_ini(out_fname, setup.config_fields.membrane_protein.value)
 
     logging.info("All done!")
 

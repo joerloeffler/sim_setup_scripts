@@ -78,10 +78,10 @@ def save_parmed(modeller, setup, forcefield_of_this_system,
     new_system = forcefield_of_this_system.createSystem(
                                 modeller.topology,
                                 nonbondedMethod=mm_apps.PME,
-                                nonbondedCutoff=setup.nb_cutoff,
+                                nonbondedCutoff=setup.config_fields.nb_cutoff.value_with_unit,
                                 removeCMMotion=False,
                                 rigidWater=False,
-                                hydrogenMass=setup.hydrogen_mass,
+                                hydrogenMass=setup.config_fields.hydrogen_mass.value_with_unit,
                                 )
     parmed_sys = parmed.openmm.load_topology(modeller.getTopology(), 
                                              new_system, 

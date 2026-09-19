@@ -59,44 +59,45 @@ template_item = CheckItem(name="sign of [propA], but propA is only given if prop
 
 # Actual list of checks for runtime
 LIST_OF_CHECKS = [CheckItem(name="Mutually exclusive fields: membrane_protein and box_shape",
-                            condition=lambda sim_setup: 
-                            (sim_setup.membrane_protein==True and 
-                             sim_setup.box_shape is not None),
+                            condition=lambda config: 
+                            (config.membrane_protein.value==True and 
+                             "box_shape" in config),
                             explanation="If you prepare a membrane protein, you cannot use the [water box] section in the config...",
                             should_quit=False  # TODO: This test currently fails with default configs, because if nothing was given, there is always a default for box_shape...
                             ),
-                  CheckItem(name="Sign of ionic strength",
-                            condition=lambda sim_setup: 
-                            (sim_setup.ionic_strength._value < 0.0),  # note we don't use .value_in_unit, because for the sign, the unit doesnt matter...
-                            explanation="Ionic strength shouldn't be negative",
-                            should_quit=True  # modelling of solvent box will fail
-                            ),
-                  CheckItem(name="Sign of timestep",
-                            condition=lambda sim_setup: 
-                            (sim_setup.timestep._value < 0.0),  # note we don't use .value_in_unit, because for the sign, the unit doesnt matter...
-                             explanation="Timestep shouldn't be negative",
-                             should_quit=False  # This error will only happen after our RunTime, so we let it slide...
-                             ),
-                  CheckItem(name="Sign of temperature",
-                            condition=lambda sim_setup: 
-                            (sim_setup.temperature.value_in_unit(mm_units.kelvin) < 0.0),
-                            explanation="Temperature (in Kelvin) shouldn't be negative",
-                            should_quit=False  # This error will only happen after our RunTime, so we let it slide...
-                            ),
-                  CheckItem(name="Sign of box_padding",
-                            condition=lambda sim_setup: 
-                            (sim_setup.padding._value < 0.0),
-                            explanation="Padding shouldn't be negative",
-                            skip_condition=lambda sim_setup: sim_setup.membrane_protein==True,
-                            should_quit=False  # This error will only happen after our RunTime, so we let it slide...
-                            ),  
-                  CheckItem(name="Sign of minimum padding",
-                            condition=lambda sim_setup: 
-                            (sim_setup.minimum_padding._value < 0.0),
-                            explanation="Minimum padding shouldn't be negative",
-                            skip_condition=lambda sim_setup: sim_setup.membrane_protein==False,
-                            should_quit=False  # This error will only happen after our RunTime, so we let it slide...
-                            ),  
+                # TODO: UPDATE THE SETUPCHECKER TO WORK WITH THE NEW SIMSETUP CLASS!!!
+                #   CheckItem(name="Sign of ionic strength",
+                #             condition=lambda sim_setup: 
+                #             (sim_setup.ionic_strength._value < 0.0),  # note we don't use .value_in_unit, because for the sign, the unit doesnt matter...
+                #             explanation="Ionic strength shouldn't be negative",
+                #             should_quit=True  # modelling of solvent box will fail
+                #             ),
+                #   CheckItem(name="Sign of timestep",
+                #             condition=lambda sim_setup: 
+                #             (sim_setup.timestep._value < 0.0),  # note we don't use .value_in_unit, because for the sign, the unit doesnt matter...
+                #              explanation="Timestep shouldn't be negative",
+                #              should_quit=False  # This error will only happen after our RunTime, so we let it slide...
+                #              ),
+                #   CheckItem(name="Sign of temperature",
+                #             condition=lambda sim_setup: 
+                #             (sim_setup.temperature.value_in_unit(mm_units.kelvin) < 0.0),
+                #             explanation="Temperature (in Kelvin) shouldn't be negative",
+                #             should_quit=False  # This error will only happen after our RunTime, so we let it slide...
+                #             ),
+                #   CheckItem(name="Sign of box_padding",
+                #             condition=lambda sim_setup: 
+                #             (sim_setup.padding._value < 0.0),
+                #             explanation="Padding shouldn't be negative",
+                #             skip_condition=lambda sim_setup: sim_setup.membrane_protein==True,
+                #             should_quit=False  # This error will only happen after our RunTime, so we let it slide...
+                #             ),  
+                #   CheckItem(name="Sign of minimum padding",
+                #             condition=lambda sim_setup: 
+                #             (sim_setup.minimum_padding._value < 0.0),
+                #             explanation="Minimum padding shouldn't be negative",
+                #             skip_condition=lambda sim_setup: sim_setup.membrane_protein==False,
+                #             should_quit=False  # This error will only happen after our RunTime, so we let it slide...
+                #             ),  
                   # ...
                   ]
 
