@@ -1,6 +1,6 @@
 from openmm import unit as mm_units
 
-from simprepper.sim_setup import SimSetup
+from simprepper.simprepper_config import SimPrepperConfig
 from simprepper.utils.utils import quit_with_error    
 
 # NOTE: This class is the important feature here
@@ -67,7 +67,6 @@ LIST_OF_CHECKS = [CheckItem(name="Mutually exclusive fields: membrane_protein an
                             should_quit=False  # TODO: I think this test is actually obsolete, \
                             #                       -> because this is already captured during sanity checking of the config file...
                             ),
-                
                   CheckItem(name="Sign of ionic strength",
                             condition=lambda config: 
                             (config.fields.ionic_strength.value < 0.0),  # note we ignore the unit, because for the sign, it doesnt matter...
@@ -106,21 +105,21 @@ LIST_OF_CHECKS = [CheckItem(name="Mutually exclusive fields: membrane_protein an
 
 #TODO: Rename to ConfigChecker
 # This is the workhorse here, but in the best base, this never needs to be touched
-class SetupChecker:
-    sim_setup          : SimSetup | None = None
-    list_of_checks     : list[CheckItem] = []
+class ConfigChecker:
+    config             : SimPrepperConfig | None = None
+    list_of_checks     : list[CheckItem]         = []
     #TODO: instead of verbose flag, parse logging level...?
-    verbose            : bool            = False
-    _results_of_checks : list            = []
-    _has_finished      : bool            = False
-    logging                              = None
+    verbose            : bool                    = False
+    _results_of_checks : list                    = []
+    _has_finished      : bool                    = False
+    logging                                      = None
 
     def __init__(self, 
-                 sim_setup, 
+                 config, 
                  logging=None,
                  list_of_checks=LIST_OF_CHECKS,
                  verbose=False):
-        self.sim_setup = sim_setup
+        self.config = config
         self.list_of_checks = list_of_checks
         self.verbose = verbose
         self.logging = logging
@@ -132,7 +131,7 @@ class SetupChecker:
         for check in self.list_of_checks:
             #DEBUG:
             # self.logging.info(f"Running check: {check.name}")
-            check.perform_check(self.sim_setup)
+            check.perform_check(self.config)
         self._has_finished = True
         return None
 

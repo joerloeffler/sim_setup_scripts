@@ -4,6 +4,7 @@ import parmed
 import logging
 import argparse
 import warnings
+import numpy as np
 
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -247,10 +248,17 @@ def calculate_protein_dimensions(positions):
     return max_coords - min_coords
 
 
-def check_initial_box_dimensions(protein_dimensions, box_vectors):
+def check_initial_box_dimensions(sys_modeller):
     """
     Check if the initial periodic box dimensions are sufficient to accommodate the protein.
     """
+
+    # Check the protein dimensions against initial periodic box vectors
+    positions = sys_modeller.positions.value_in_unit(mm_units.nanometers)
+    pos_array = np.array(positions)
+    protein_dims = calculate_protein_dimensions(pos_array)
+    box_vectors = sys_modeller.topology.getPeriodicBoxVectors()
+
     axis_names = ['X', 'Y', 'Z']
     
     # Extract periodic box diagonal lengths in nanometers
@@ -263,14 +271,14 @@ def check_initial_box_dimensions(protein_dimensions, box_vectors):
     
     # Check each axis against protein extent
     for i in range(3):
-        if protein_dimensions[i] > box_lengths[i]:
+        if protein_dims[i] > box_lengths[i]:
             logging.warning(
                 f"Initial box dimension {axis_names[i]} ({box_lengths[i]:.2f} nm) "
-                f"is smaller than protein span ({protein_dimensions[i]:.2f} nm). "
+                f"is smaller than protein span ({protein_dims[i]:.2f} nm). "
                 f"OpenMM will and expand the unit cell during membrane/solvent addition. " 
                 f"Make sure to inspect if the final box dimensions are sufficient to accommodate the protein and any added solvent/ions."
             )
-    # NOTE: I think the latter is a copy-paste error...?
+    # NOTE: paq: I think the next line does not belong here... Copy-paste error...?
     # print(f"Wrote example config to {args.output}")
     return None
 

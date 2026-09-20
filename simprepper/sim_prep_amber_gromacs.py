@@ -17,9 +17,9 @@ from simprepper.argument_parsing import parser
 from simprepper.utils.utils import select_platform, get_sysname, prep_filetree, export_all_files, sanity_check_pdb_for_TERs, sanity_check_ligand_extension, check_initial_box_dimensions, calculate_protein_dimensions
 from simprepper.utils.utils import ExportPathManager
 from simprepper.structure_prep import prepare_ligand, prepare_protein, parametrize_ligand
-from simprepper.sim_setup import SimSetup
-from simprepper.sim_setup import SimSetup
-from simprepper.setup_checker import SetupChecker
+from simprepper.simprepper_setup import SimSetup
+from simprepper.simprepper_setup import SimSetup
+from simprepper.config_checker import ConfigChecker
 
 # OpenMM imports
 import openmm
@@ -64,28 +64,6 @@ def process_ligand(setup, verbose):
 args = parser.parse_args()
 sys_name, rec_basename = get_sysname(args)
 
-# Construct this class-instance from ini file or from command line arguments
-if args.ini is not None:
-    setup = SimSetup.from_ini(sys_name, 
-                              rec_fname=args.rec,
-                              lig_fname=args.lig,
-                              ini_fname=args.ini)
-else:
-    msg = ("Since you did not provide any .ini file, " + \
-            "we are using default values for all settings. " + \
-            "Consider executing `simprepper-example-config` to see all available settings.")
-    warnings.warn(msg,
-                  UserWarning,
-                  stacklevel=2)
-    setup = SimSetup.from_defaults(sys_name, 
-                                   rec_fname=args.rec,
-                                   lig_fname=args.lig)
-
-
-export_path_manager = ExportPathManager.from_args(sys_name, args)
-prep_filetree(subdirs=(sys_name, LOG_PATH),
-              subsubdirs=export_path_manager.get_subsubdirectories())
-
 if args.debug:
     print(args)
     print("Log-level: {}".format(args.log_level.upper()))
@@ -101,12 +79,33 @@ logging.basicConfig(
     force=True  # NOTE: paq: otherwise doesn't print to stdout on all systems...
 )
 
+# Construct this class-instance from ini file or from command line arguments
+if args.ini is not None:
+    setup = SimSetup.from_ini(sys_name, 
+                              rec_fname=args.rec,
+                              lig_fname=args.lig,
+                              ini_fname=args.ini)
+else:
+    msg = ("Since you did not provide any .ini file, " + \
+            "we are using default values for all settings. " + \
+            "Consider executing `simprepper-example-config` to see all available settings.")
+    logging.info(msg)
+    setup = SimSetup.from_defaults(sys_name, 
+                                   rec_fname=args.rec,
+                                   lig_fname=args.lig)
+
+
+export_path_manager = ExportPathManager.from_args(sys_name, args)
+prep_filetree(subdirs=(sys_name, LOG_PATH),
+              subsubdirs=export_path_manager.get_subsubdirectories())
+
+
 # %% define main()
 def main():
-    #NOTE: We might want to remove the verbose=True flag here, in the long run.
-    setup_checker = SetupChecker(setup.config, logging, verbose=args.verbose)
-    setup_checker.run_all_checks() 
-    setup_checker.get_report()
+    # check for logical errors in the config, before anything else happens.
+    config_checker = ConfigChecker(setup.config, logging, verbose=args.verbose)
+    config_checker.run_all_checks() 
+    config_checker.get_report()
 
     # the setup contains sys_name and file_names, but also the `SimPrepperConfig`.
     config = setup.config  # We mostly need the SimPrepperConfig fields, which are direct attributes
@@ -146,7 +145,7 @@ def main():
 
     # Optional ligand
     if setup.lig_fname:
-        #NOTE: `ligand` is not acually used anywhere anymore
+        #NOTE: `ligand` is currently not acually used anywhere anymore
         ligand, ligand_template_generator = process_ligand(setup, args.verbose)
 
         logging.info("Adding ligand to the modeller...")
@@ -163,14 +162,10 @@ def main():
     # Make an OpenMM Modeller object with the protein
     sys_modeller = mm_apps.Modeller(pdb_fixed.topology, 
                                     pdb_fixed.positions)
-    # Check the protein dimensions against initial periodic box vectors
-    positions = sys_modeller.positions.value_in_unit(mm_units.nanometers)
-    pos_array = np.array(positions)
-    protein_dims = calculate_protein_dimensions(pos_array)
-    initial_box_vectors = sys_modeller.topology.getPeriodicBoxVectors()
+    
     #TODO: incorporate this in the SetupChecker?
-    #Maybe this is more of a problem for something like a ModelChecker?
-    check_initial_box_dimensions(protein_dims, initial_box_vectors)
+    #   -> Maybe this is more of a problem for a new module,like a `ModelChecker`?
+    check_initial_box_dimensions(sys_modeller)
 
     if config.membrane_protein:
         logging.info("Preparing membrane protein system. Adding membrane, solvent, and ions...")

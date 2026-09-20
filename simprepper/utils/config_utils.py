@@ -1,10 +1,10 @@
 
 import os
 # from collections import namedtuple
-from dataclasses import dataclass, field
+# from dataclasses import dataclass, field
 from openmm import unit as mm_units
 
-
+#TODO: remove this eventually
 # SimSetupField = namedtuple("SimSetupField", ["name", 
 #                                              "unit", 
 #                                              "default_value", # this will always be passed on
@@ -15,7 +15,7 @@ class SimSetupField:
     name:           str | None  = None
     unit                        = None    
     default_value               = None  # this will always be passed on
-    given_value                 = None # this will be None, if not initialized differently
+    given_value                 = None  # this will be None, if not initialized differently
     data_type                   = None
     value_was_set:  bool        = False
 
@@ -86,13 +86,13 @@ def initialize_field_from_kwarg(default_field_behind_key, val):
 
 
 # %% Template class for Config-sections
-@dataclass
 class AbstractConfigSection:
     section_name         : str   = ""
-    default_fields       : dict  = field(default_factory=dict)
-    fields               : dict  = field(default_factory=dict)
+    default_fields       : dict
+    fields               : dict
 
-    def __init__(self, input_fields):
+    def __init__(self, input_fields, section_name=None):
+        self.section_name = section_name or self.section_name
         self.fields = input_fields
         return None
 
@@ -104,7 +104,7 @@ class AbstractConfigSection:
             }
         
         return cls(section_name=cls.section_name,
-                   fields=initial_fields)
+                   input_fields=initial_fields)
 
     @classmethod
     def from_kwargs(cls, **kwargs):
@@ -127,11 +127,10 @@ class AbstractConfigSection:
         initial_fields.update(filtered_kwargs)
     
         return cls(section_name=cls.section_name,
-                   fields=initial_fields)
+                   input_fields=initial_fields)
 
 
 # %% Sections for the config file
-@dataclass
 class SystemSection(AbstractConfigSection):
     section_name       = "system"
     # class-level definition of the default values
@@ -140,7 +139,6 @@ class SystemSection(AbstractConfigSection):
     default_fields     = {f.name: f for f in _list_of_defaults}
 
 
-@dataclass
 class WaterBoxSection(AbstractConfigSection):
     section_name       = "water_box"
     # class-level definition of the default values
@@ -150,7 +148,6 @@ class WaterBoxSection(AbstractConfigSection):
     default_fields     = {f.name: f for f in _list_of_defaults}
 
 
-@dataclass
 class MembraneBoxSection(AbstractConfigSection):
     section_name       = "membrane_box"
     # class-level definition of the default values
@@ -161,36 +158,32 @@ class MembraneBoxSection(AbstractConfigSection):
     default_fields     = {f.name: f for f in _list_of_defaults}
 
 
-@dataclass
 class SimulationSection(AbstractConfigSection):
     section_name       = "simulation"
     # class-level definition of the default values
-    _list_of_defaults  = [
-        SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
-        SimSetupField("hydrogen_mass", mm_units.amu, 4.0, float),
-        SimSetupField("timestep", mm_units.picoseconds, 0.004, float),
-        SimSetupField("temperature", mm_units.kelvin, 300.0, float),
-        SimSetupField("ionic_strength", mm_units.molar, 0.15, float),
-        SimSetupField("ph", None, 7.4, float),
-    ]
+    _list_of_defaults  = [SimSetupField("nb_cutoff", mm_units.nanometer, 1.0, float),
+                          SimSetupField("hydrogen_mass", mm_units.amu, 4.0, float),
+                          SimSetupField("timestep", mm_units.picoseconds, 0.004, float),
+                          SimSetupField("temperature", mm_units.kelvin, 300.0, float),
+                          SimSetupField("ionic_strength", mm_units.molar, 0.15, float),
+                          SimSetupField("ph", None, 7.4, float),
+                          ]
     default_fields    = {f.name: f for f in _list_of_defaults}
 
 
-@dataclass
 class ForceFieldsSectionAmber(AbstractConfigSection):
     section_name       = "forcefields"
     # class-level definition of the default values
-    _list_of_defaults  = [
-        SimSetupField("ligand_ff", None, "GAFF", str),
-        SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", str),
-        SimSetupField("water_ff", None, "amber14/tip3pfb.xml", str),
-        SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", str),
-        SimSetupField("lipid_ff", None, "amber14/lipid17.xml", str),
-    ]
+    _list_of_defaults  = [SimSetupField("ligand_ff", None, "GAFF", str),
+                          SimSetupField("protein_ff", None, "amber14/protein.ff14SB.xml", str),
+                          SimSetupField("water_ff", None, "amber14/tip3pfb.xml", str),
+                          SimSetupField("ion_ff", None, "amber/tip3p_HFE_multivalent.xml", str),
+                          SimSetupField("lipid_ff", None, "amber14/lipid17.xml", str),
+                          ]
     default_fields     = {f.name: f for f in _list_of_defaults}
 
 
-def sanity_check_ini_file_if_exists(ini_filename):
+def check_if_ini_file_exists(ini_filename):
     """
     Checks if the ini file exists. Raises a FileNotFoundError if the file does not exist.
     """
