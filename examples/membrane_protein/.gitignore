@@ -1,2 +1,3 @@
-prot_prep_logs/
+*_logs/
 1afo_opm_no_dum/
+default_config.ini 

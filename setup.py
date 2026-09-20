@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="simprepper",
-    version="0.1.0",
+    version="0.2.0",
     packages=find_packages(),
     install_requires=[
         # List your dependencies here, e.g., 'requests', 'pandas'
@@ -12,7 +12,7 @@ setup(
             # This creates a command called 'run-my-tool'
             # format: 'command_name = package.module:function'
             'simprepper = simprepper.sim_prep_amber_gromacs:main',
-            'simprepper-example-config = simprepper.utils:write_example_ini',
+            'simprepper-example-config = simprepper.simprepper_setup:write_example_ini',
             'simprepper-forcefields = simprepper.utils:find_forcefields',
         ],
     },

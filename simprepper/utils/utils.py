@@ -4,6 +4,7 @@ import parmed
 import logging
 import argparse
 import warnings
+import numpy as np
 
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -11,7 +12,6 @@ from openmmtools.utils import get_fastest_platform
 from openmm import app as mm_apps
 from openmm.app import forcefield
 from openmm import unit as mm_units
-from simprepper.sim_setup import SimSetup
 
 
 def quit_with_error(
@@ -79,10 +79,10 @@ def save_parmed(modeller, setup, forcefield_of_this_system,
     new_system = forcefield_of_this_system.createSystem(
                                 modeller.topology,
                                 nonbondedMethod=mm_apps.PME,
-                                nonbondedCutoff=setup.nb_cutoff,
+                                nonbondedCutoff=setup.config.nb_cutoff,
                                 removeCMMotion=False,
                                 rigidWater=False,
-                                hydrogenMass=setup.hydrogen_mass,
+                                hydrogenMass=setup.config.hydrogen_mass,
                                 )
     parmed_sys = parmed.openmm.load_topology(modeller.getTopology(), 
                                              new_system, 
@@ -238,29 +238,6 @@ def find_forcefields():
         print()
 
 
-def write_example_ini():
-    """
-    Writes an example ini file with all default values.
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-o",
-        "--output",
-        default="default_config.ini",
-        help="Output .ini filename"
-    )
-    parser.add_argument(
-        "--membrane",
-        action="store_true",
-        help="Generate a configuration template for a membrane protein system"
-    )
-    args = parser.parse_args()
-
-    SimSetup().to_ini(args.output, args.membrane)
-
-    print(f"Wrote example config to {args.output}")
-
-
 def calculate_protein_dimensions(positions):
     """
     Calculate the bounding dimensions (X, Y, Z) of the protein 
@@ -271,10 +248,17 @@ def calculate_protein_dimensions(positions):
     return max_coords - min_coords
 
 
-def check_initial_box_dimensions(protein_dimensions, box_vectors):
+def check_initial_box_dimensions(sys_modeller):
     """
     Check if the initial periodic box dimensions are sufficient to accommodate the protein.
     """
+
+    # Check the protein dimensions against initial periodic box vectors
+    positions = sys_modeller.positions.value_in_unit(mm_units.nanometers)
+    pos_array = np.array(positions)
+    protein_dims = calculate_protein_dimensions(pos_array)
+    box_vectors = sys_modeller.topology.getPeriodicBoxVectors()
+
     axis_names = ['X', 'Y', 'Z']
     
     # Extract periodic box diagonal lengths in nanometers
@@ -287,14 +271,14 @@ def check_initial_box_dimensions(protein_dimensions, box_vectors):
     
     # Check each axis against protein extent
     for i in range(3):
-        if protein_dimensions[i] > box_lengths[i]:
+        if protein_dims[i] > box_lengths[i]:
             logging.warning(
                 f"Initial box dimension {axis_names[i]} ({box_lengths[i]:.2f} nm) "
-                f"is smaller than protein span ({protein_dimensions[i]:.2f} nm). "
+                f"is smaller than protein span ({protein_dims[i]:.2f} nm). "
                 f"OpenMM will and expand the unit cell during membrane/solvent addition. " 
                 f"Make sure to inspect if the final box dimensions are sufficient to accommodate the protein and any added solvent/ions."
             )
-    # NOTE: I think the latter is a copy-paste error...?
+    # NOTE: paq: I think the next line does not belong here... Copy-paste error...?
     # print(f"Wrote example config to {args.output}")
     return None
 
